@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>zDash - ZFS Pool Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-hover: #253347;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --warning: #eab308;
+      --danger: #ef4444;
+      --border: #334155;
+      --glass: rgba(30, 41, 59, 0.7);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 {
+      text-align: center;
+      font-weight: 300;
+      letter-spacing: 1px;
+      margin-bottom: 32px;
+      font-size: 2rem;
+      background: linear-gradient(90deg, var(--accent), #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      background: var(--card-hover);
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, var(--accent), #818cf8);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .card:hover::before { opacity: 1; }
+
+    .pool-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .pool-name { font-size: 1.4rem; font-weight: 600; }
+    .health-badge {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .health-ONLINE { background: rgba(34,197,94,0.15); color: var(--success); }
+    .health-DEGRADED { background: rgba(234,179,8,0.15); color: var(--warning); }
+    .health-OFFLINE { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+    .stat-box {
+      background: rgba(255,255,255,0.04);
+      padding: 12px 8px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 1.1rem; font-weight: 500; margin-top: 4px; color: var(--accent); }
+
+    .progress-container { margin: 16px 0; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-muted); }
+    .progress-bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; position: relative; }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #818cf8);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .progress-fill::after {
+      content: "";
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      animation: shimmer 2s infinite;
+    }
+    @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+    .frag-info { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
+
+    .vdevs { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .vdevs-title { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .vdev {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+    .vdev:hover { background: rgba(255,255,255,0.05); }
+    .vdev-name { font-family: ui-monospace, monospace; color: #cbd5e1; }
+    .vdev-info { display: flex; gap: 12px; align-items: center; color: var(--text-muted); font-size: 0.8rem; }
+    .vdev-badge { padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
+
+    .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 1.1rem; }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      margin: 0 auto 16px; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .refresh-btn {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--accent); color: #0f172a;
+      border: none; padding: 12px 20px; border-radius: 10px;
+      cursor: pointer; font-weight: 600; font-size: 0.9rem;
+      box-shadow: 0 4px 12px rgba(56,189,248,0.3);
+      transition: all 0.2s;
+    }
+    .refresh-btn:hover { background: #0ea5e9; transform: translateY(-2px); }
+    .refresh-btn:active { transform: translateY(0); }
+
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ZFS Pool Dashboard <a href=https://github.com/paepckehh/> [zDash] </a></h1>
+    <div id="dashboard" class="grid"></div>
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <div>Initializing dashboard...</div>
+    </div>
+  </div>
+  <button class="refresh-btn" onclick="fetchData()">↻ Refresh</button>
+
+  <script>
+    const REFRESH_INTERVAL = 5000; // ms
+    let refreshTimer = null;
+
+    function getHealthClass(state) {
+      const s = (state || '').toUpperCase();
+      if (s === 'ONLINE') return 'health-ONLINE';
+      if (s === 'DEGRADED') return 'health-DEGRADED';
+      if (s === 'OFFLINE' || s === 'FAULTED') return 'health-OFFLINE';
+      return 'health-ONLINE';
+    }
+
+    function renderVdevs(vdevs, depth = 0) {
+      if (!vdevs) return '';
+      let html = '';
+      for (const [name, vdev] of Object.entries(vdevs)) {
+        const indent = depth * 16;
+        const healthClass = getHealthClass(vdev.state);
+        const size = vdev.properties.size.value || '-';
+        const path = vdev.path || 'N/A';
+        html += `
+          <div class="vdev" style="margin-left:${indent}px">
+            <span class="vdev-name">${name}</span>
+            <div class="vdev-info">
+              <span class="vdev-badge ${healthClass}">${vdev.state}</span>
+              <span>${size}</span>
+              <span style="font-size:0.75rem;opacity:0.7">${path}</span>
+            </div>
+          </div>
+        `;
+        if (vdev.vdevs) html += renderVdevs(vdev.vdevs, depth + 1);
+      }
+      return html;
+    }
+
+    function renderPool(name, pool) {
+      const capVal = parseFloat(pool.properties.capacity.value) || 0;
+      const fragVal = pool.properties.fragmentation.value || '-';
+      const healthClass = getHealthClass(pool.state);
+
+      return `
+        <div class="card">
+          <div class="pool-header">
+            <span class="pool-name">${name}</span>
+            <span class="health-badge ${healthClass}">${pool.state}</span>
+          </div>
+          <div class="stats">
+            <div class="stat-box"><div class="stat-label">Total Size</div><div class="stat-value">${pool.properties.size.value}</div></div>
+            <div class="stat-box"><div class="stat-label">Allocated</div><div class="stat-value">${pool.properties.allocated.value}</div></div>
+            <div class="stat-box"><div class="stat-label">Free</div><div class="stat-value">${pool.properties.free.value}</div></div>
+          </div>
+          <div class="progress-container">
+            <div class="progress-header">
+              <span>Capacity</span>
+              <span>${capVal.toFixed(2)}%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${Math.min(capVal, 100)}%"></div>
+            </div>
+          </div>
+          <div class="frag-info">Fragmentation: ${fragVal}</div>
+          <div class="vdevs">
+            <div class="vdevs-title">Virtual Devices</div>
+            ${renderVdevs(pool.vdevs)}
+          </div>
+        </div>
+      `;
+    }
+
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/zpool');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        
+        const dashboard = document.getElementById('dashboard');
+        const loading = document.getElementById('loading');
+        
+        if (loading) loading.style.display = 'none';
+        dashboard.innerHTML = '';
+
+        if (!data.pools || Object.keys(data.pools).length === 0) {
+          dashboard.innerHTML = '<div class="loading">No pools found or command returned empty data.</div>';
+          return;
+        }
+
+        for (const [name, pool] of Object.entries(data.pools)) {
+          dashboard.innerHTML += renderPool(name, pool);
+        }
+      } catch (err) {
+        console.error('Dashboard fetch failed:', err);
+        document.getElementById('dashboard').innerHTML = `
+          <div class="loading" style="color:var(--danger)">
+            <div>⚠️ Failed to load data</div>
+            <div style="font-size:0.85rem;opacity:0.7;margin-top:8px">${err.message}</div>
+          </div>`;
+      }
+    }
+
+    // Initial load & auto-refresh
+    fetchData();
+    refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+
+    // Pause refresh when tab is hidden to save resources
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) clearInterval(refreshTimer);
+      else refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+    });
+  </script>
+</body>
+</html>
