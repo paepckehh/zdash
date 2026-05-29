@@ -17,7 +17,8 @@ A modern, self-hosted ZFS pool monitoring dashboard built with pure Go. Fetches 
 - 🔁 **Interactive Refresh** – Dedicated JSON API endpoint enables client-side updates without full page reloads.
 - 🛡️ **Production-Ready** – Context timeouts, graceful error handling, and strict HTTP server configuration prevent resource leaks.
 - ⚙️ **Configurable Bind Address** – Control network binding via `BIND_ADDR` environment variable.
-
+- 🛠️  **Security First** - LocalHost default, static encoded: read-only, no-interactive localhost zfs interaction
+- 🛠️  **AI-Policy** - Golang code human made/reviewed, html templates/parser and readme AI assisted aislop 
 ---
 
 ## 📸 Preview
@@ -106,14 +107,7 @@ Open `http://<BIND_ADDR>` in your browser.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please ensure code passes `gofmt`, `go vet`, and includes appropriate tests where applicable.
+Contributions are welcome! 
 
 ---
 
