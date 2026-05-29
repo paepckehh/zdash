@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+// replace at link time with real version tag
+// example: go build -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
+var version = "0.1.0-dev"
+
+
 //go:embed embed/index.html
 var indexHTML embed.FS
 
@@ -65,10 +70,6 @@ type VDev struct {
 	Properties PoolProperties  `json:"properties"`
 	Vdevs      map[string]VDev `json:"vdevs"`
 }
-
-// replace at link time with real version tag
-// example: go build -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
-var version = "0.1.0-dev"
 
 func main() {
 	var showVersion bool

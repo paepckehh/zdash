@@ -46,7 +46,7 @@ go run paepcke.de/zdash
 ```bash
 git clone https://github.com/paepckehh/zdash.git
 cd zdash
-go build -o zdash .
+go build -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
 ```
 
 ---
