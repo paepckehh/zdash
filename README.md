@@ -26,11 +26,15 @@ A modern, self-hosted ZFS pool monitoring dashboard built with pure Go. Fetches 
 
 ---
 
-## 🛠️ Just Run
+## 🛠️  Just Run
+- install go / golang
+- install ZFS utilities
 
 ```bash
-go run paepcke.de/zdash
+go run paepcke.de/zdash@latest
+xdg-open http://localhost:8080
 ```
+access via browser : http://localhost:8080 
 
 ## 📋 Prerequisites
 
@@ -38,10 +42,9 @@ go run paepcke.de/zdash
 - Linux, FreeBSD, or macOS (ZFS-compatible OS)
 
 ---
-
 ---
 
-## 🛠️ Local Source, Review, Build & Installation
+## 🛠️ Local Source Review first, Build & Installation
 
 ```bash
 git clone https://github.com/paepckehh/zdash.git

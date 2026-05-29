@@ -14,7 +14,7 @@ import (
 
 // replace at link time with real version tag
 // example: go build -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
-var version = "0.1.0-dev"
+var version = "0.1.1-dev"
 
 
 //go:embed embed/index.html
@@ -82,7 +82,7 @@ func main() {
 		return
 	}
 
-	listen := os.Getenv("ZDASH_LISTEN")
+	listen := os.Getenv("BIND_ADDR")
 	if listen == "" {
 		listen = "127.0.0.1:8080"
 	}
