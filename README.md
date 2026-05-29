@@ -42,7 +42,6 @@ access via browser : http://localhost:8080
 - Linux, FreeBSD, or macOS (ZFS-compatible OS)
 
 ---
----
 
 ## 🛠️ Local Source Review first, Build & Installation
 
