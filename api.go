@@ -1,10 +1,9 @@
-package main
+package zdash
 
 import (
 	"context"
 	"embed"
 	"encoding/json"
-	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -12,13 +11,11 @@ import (
 	"time"
 )
 
-// replace at link time with real version tag
-// example: go build -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
-var version = "0.1.1-dev"
-
-
 //go:embed embed/index.html
 var indexHTML embed.FS
+
+// zpool binary on nixos
+const nixpath = "/run/current-system/sw/bin/zpool"
 
 // ZPoolOutput represents the JSON structure from `zpool list -v --json`
 type ZPoolOutput struct {
@@ -71,31 +68,7 @@ type VDev struct {
 	Vdevs      map[string]VDev `json:"vdevs"`
 }
 
-func main() {
-	var showVersion bool
-	flag.BoolVar(&showVersion, "version", false, "print version")
-	flag.BoolVar(&showVersion, "V", false, "print version (shorthand)")
-	flag.Parse()
-
-	if showVersion {
-		log.Printf("ZDASH Version: %s", version)
-		return
-	}
-
-	listen := os.Getenv("BIND_ADDR")
-	if listen == "" {
-		listen = "127.0.0.1:8080"
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", handleIndex)
-	mux.HandleFunc("/api/zpool", handleZPoolAPI)
-
-	log.Printf("Starting ZFS Dashboard v%s on %s", version, listen)
-	log.Fatal(http.ListenAndServe(listen, mux))
-}
-
-func handleIndex(w http.ResponseWriter, r *http.Request) {
+func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := indexHTML.ReadFile("embed/index.html")
 	if err != nil {
 		http.Error(w, "Internal Server Error: missing embedded resources", http.StatusInternalServerError)
@@ -106,17 +79,20 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func handleZPoolAPI(w http.ResponseWriter, r *http.Request) {
+func HandleZPoolAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Execute zpool with a 5s timeout to prevent hanging
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "zpool", "list", "-v", "--json")
+	bin := "zpool"
+	if _, err := os.Stat(nixpath); err == nil {
+		bin = nixpath
+	}
+	cmd := exec.CommandContext(ctx, bin, "list", "-v", "--json")
 	out, err := cmd.Output()
 	if err != nil {
 		log.Printf("⚠️  zpool command failed: %v", err)

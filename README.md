@@ -32,7 +32,7 @@ A modern, self-hosted ZFS pool monitoring dashboard built with pure Go. Fetches 
 - install ZFS utilities
 
 ```bash
-go run paepcke.de/zdash@latest
+go run paepcke.de/zdash/cmd/zdash@latest
 xdg-open http://localhost:8080
 ```
 access via browser : http://localhost:8080 
@@ -49,6 +49,7 @@ access via browser : http://localhost:8080
 ```bash
 git clone https://github.com/paepckehh/zdash.git
 cd zdash
+cd cmd/zdash
 go build -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
 ```
 
