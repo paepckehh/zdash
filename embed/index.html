@@ -3,277 +3,938 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>zDash - ZFS Pool Dashboard</title>
+  <title>zDash — ZFS Pool & ARC Dashboard</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-hover: #253347;
-      --text: #e2e8f0;
-      --text-muted: #94a3b8;
-      --accent: #38bdf8;
-      --success: #22c55e;
-      --warning: #eab308;
-      --danger: #ef4444;
-      --border: #334155;
-      --glass: rgba(30, 41, 59, 0.7);
+      --bg: #0a0e1a;
+      --bg-grad: radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,0.12), transparent 60%),
+                  radial-gradient(900px 500px at 10% 110%, rgba(6,182,212,0.10), transparent 55%),
+                  #0a0e1a;
+      --card: rgba(23,30,48,0.72);
+      --card-2: rgba(30,41,59,0.6);
+      --card-hover: rgba(40,52,76,0.85);
+      --text: #e6edf6;
+      --muted: #8b9bb4;
+      --dim: #5a6b86;
+      --border: rgba(99,116,139,0.22);
+      --border-strong: rgba(148,163,184,0.35);
+
+      --cyan: #22d3ee;
+      --indigo: #818cf8;
+      --violet: #a78bfa;
+      --emerald: #34d399;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      --pink: #f472b6;
+      --blue: #60a5fa;
+
+      --pool-grad: linear-gradient(135deg, #22d3ee, #818cf8);
+      --arc-grad: linear-gradient(135deg, #34d399, #22d3ee);
+      --hit-grad: linear-gradient(135deg, #34d399, #fbbf24);
+      --miss-grad: linear-gradient(135deg, #fb7185, #f472b6);
+      --size-grad: linear-gradient(135deg, #818cf8, #a78bfa);
+
+      --glass: blur(14px);
+      --shadow: 0 10px 40px -10px rgba(0,0,0,0.6);
+      --radius: 18px;
+      --radius-sm: 12px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: var(--bg);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-grad);
+      background-attachment: fixed;
       color: var(--text);
       min-height: 100vh;
-      padding: 24px;
+      padding: 28px 20px 96px;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .container { max-width: 1200px; margin: 0 auto; }
-    h1 {
-      text-align: center;
-      font-weight: 300;
-      letter-spacing: 1px;
-      margin-bottom: 32px;
-      font-size: 2rem;
-      background: linear-gradient(90deg, var(--accent), #818cf8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
+    .wrap { max-width: 1280px; margin: 0 auto; }
 
-    .grid {
+    /* ── Hero / header ─────────────────────────────────────────── */
+    .hero { margin-bottom: 28px; }
+    .hero-top {
+      display: flex; align-items: baseline; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 6px;
+    }
+    .brand {
+      font-size: clamp(1.7rem, 4vw, 2.6rem); font-weight: 800;
+      letter-spacing: -0.02em; line-height: 1.05;
+      background: linear-gradient(100deg, #22d3ee 0%, #818cf8 45%, #a78bfa 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .brand-sub {
+      font-size: 0.82rem; color: var(--muted); font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+    .hero-link {
+      color: var(--dim); font-size: 0.8rem; text-decoration: none;
+      border: 1px solid var(--border); padding: 6px 12px; border-radius: 999px;
+      transition: all 0.2s;
+    }
+    .hero-link:hover { color: var(--cyan); border-color: var(--cyan); }
+
+    .kpi-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px; margin-top: 18px;
     }
+    .kpi {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      backdrop-filter: var(--glass); position: relative; overflow: hidden;
+      transition: transform 0.25s, border-color 0.25s;
+    }
+    .kpi:hover { transform: translateY(-3px); border-color: var(--border-strong); }
+    .kpi::before {
+      content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+      background: var(--accent, var(--pool-grad)); opacity: 0.9;
+    }
+    .kpi[data-accent="arc"] { --accent: var(--arc-grad); }
+    .kpi[data-accent="hit"] { --accent: var(--hit-grad); }
+    .kpi[data-accent="miss"] { --accent: var(--miss-grad); }
+    .kpi[data-accent="size"] { --accent: var(--size-grad); }
+    .kpi[data-accent="pool"] { --accent: var(--pool-grad); }
+    .kpi-label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--muted); font-weight: 600;
+    }
+    .kpi-value {
+      font-size: 1.5rem; font-weight: 700; margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+      background: var(--accent, var(--pool-grad));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .kpi-sub { font-size: 0.72rem; color: var(--dim); margin-top: 2px; }
 
+    /* ── Tabs ──────────────────────────────────────────────────── */
+    .tabs {
+      display: flex; gap: 6px; margin: 8px 0 22px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 999px; padding: 5px; width: fit-content;
+      backdrop-filter: var(--glass);
+    }
+    .tab {
+      border: none; background: transparent; color: var(--muted);
+      padding: 9px 22px; border-radius: 999px; cursor: pointer;
+      font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      color: #0a0e1a; font-weight: 700;
+      background: var(--pool-grad);
+      box-shadow: 0 4px 14px rgba(99,102,241,0.3);
+    }
+    .tab[data-tab="arc"].active { background: var(--arc-grad); box-shadow: 0 4px 14px rgba(52,211,153,0.3); }
+    .pane { display: none; animation: fadeIn 0.35s ease; }
+    .pane.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* ── Grid / cards ──────────────────────────────────────────── */
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 22px;
+    }
     .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s;
-      position: relative;
-      overflow: hidden;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+      backdrop-filter: var(--glass); box-shadow: var(--shadow);
+      position: relative; overflow: hidden;
+      transition: transform 0.25s, border-color 0.25s, background 0.25s;
     }
     .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      transform: translateY(-4px); border-color: var(--border-strong);
       background: var(--card-hover);
     }
     .card::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0; height: 4px;
-      background: linear-gradient(90deg, var(--accent), #818cf8);
-      opacity: 0;
+      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: var(--card-accent, var(--pool-grad)); opacity: 0;
       transition: opacity 0.3s;
     }
     .card:hover::before { opacity: 1; }
+    .card[data-accent="arc"] { --card-accent: var(--arc-grad); }
 
-    .pool-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .pool-name { font-size: 1.4rem; font-weight: 600; }
-    .health-badge {
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .card-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+    .badge {
+      padding: 4px 11px; border-radius: 999px; font-size: 0.7rem;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
     }
-    .health-ONLINE { background: rgba(34,197,94,0.15); color: var(--success); }
-    .health-DEGRADED { background: rgba(234,179,8,0.15); color: var(--warning); }
-    .health-OFFLINE { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .b-online { background: rgba(52,211,153,0.16); color: var(--emerald); }
+    .b-degraded { background: rgba(251,191,36,0.16); color: var(--amber); }
+    .b-offline { background: rgba(251,113,133,0.16); color: var(--rose); }
 
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
-    .stat-box {
-      background: rgba(255,255,255,0.04);
-      padding: 12px 8px;
-      border-radius: 10px;
-      text-align: center;
+    /* stat tiles */
+    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+    .tile {
+      background: rgba(255,255,255,0.035); padding: 12px 10px;
+      border-radius: var(--radius-sm); text-align: center;
+      border: 1px solid rgba(255,255,255,0.04);
     }
-    .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .stat-value { font-size: 1.1rem; font-weight: 500; margin-top: 4px; color: var(--accent); }
+    .tile-label { font-size: 0.66rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .tile-value { font-size: 1.05rem; font-weight: 600; margin-top: 3px; color: var(--text); font-variant-numeric: tabular-nums; }
+    .tile-value.cyan { color: var(--cyan); }
+    .tile-value.emerald { color: var(--emerald); }
+    .tile-value.amber { color: var(--amber); }
+    .tile-value.rose { color: var(--rose); }
+    .tile-value.violet { color: var(--violet); }
 
-    .progress-container { margin: 16px 0; }
-    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-muted); }
-    .progress-bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; position: relative; }
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent), #818cf8);
-      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    /* progress */
+    .bar-wrap { margin: 14px 0; }
+    .bar-head { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem; color: var(--muted); }
+    .bar-head span:last-child { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .bar {
+      height: 10px; background: rgba(255,255,255,0.06);
+      border-radius: 999px; overflow: hidden; position: relative;
+    }
+    .bar-fill {
+      height: 100%; border-radius: 999px;
+      background: var(--fill, var(--pool-grad));
+      transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
       position: relative;
     }
-    .progress-fill::after {
-      content: "";
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-      animation: shimmer 2s infinite;
+    .bar-fill::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      animation: shimmer 2.4s infinite;
     }
     @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
-    .frag-info { font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
+    /* donut */
+    .donut-row { display: flex; align-items: center; gap: 18px; }
+    .donut { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+    .donut svg { transform: rotate(-90deg); }
+    .donut-center {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center;
+    }
+    .donut-pct { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .donut-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .leg-item { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; }
+    .leg-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+    .leg-val { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
 
+    /* sparkline */
+    .spark { height: 56px; margin: 8px 0 2px; position: relative; }
+    .spark svg { width: 100%; height: 100%; display: block; }
+
+    /* vdev list */
     .vdevs { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
-    .vdevs-title { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+    .vdevs-title { font-size: 0.68rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
     .vdev {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 12px;
-      background: rgba(255,255,255,0.02);
-      border-radius: 8px;
-      margin-bottom: 6px;
-      font-size: 0.9rem;
-      transition: background 0.2s;
+      padding: 8px 12px; background: rgba(255,255,255,0.025);
+      border-radius: var(--radius-sm); margin-bottom: 6px;
+      font-size: 0.85rem; transition: background 0.2s;
     }
-    .vdev:hover { background: rgba(255,255,255,0.05); }
-    .vdev-name { font-family: ui-monospace, monospace; color: #cbd5e1; }
-    .vdev-info { display: flex; gap: 12px; align-items: center; color: var(--text-muted); font-size: 0.8rem; }
-    .vdev-badge { padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
+    .vdev:hover { background: rgba(255,255,255,0.06); }
+    .vdev-name { font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #cbd5e1; }
+    .vdev-info { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 0.78rem; }
 
-    .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 1.1rem; }
+    /* loading / error */
+    .state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.05rem; }
     .spinner {
-      width: 40px; height: 40px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%;
+      width: 42px; height: 42px; border: 3px solid var(--border);
+      border-top-color: var(--cyan); border-radius: 50%;
       margin: 0 auto 16px; animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .err { color: var(--rose); }
+    .err-detail { font-size: 0.82rem; opacity: 0.75; margin-top: 8px; }
+    .muted-note { font-size: 0.78rem; color: var(--dim); margin-top: 14px; text-align: center; }
 
-    .refresh-btn {
+    /* FAB */
+    .fab {
       position: fixed; bottom: 24px; right: 24px;
-      background: var(--accent); color: #0f172a;
-      border: none; padding: 12px 20px; border-radius: 10px;
-      cursor: pointer; font-weight: 600; font-size: 0.9rem;
-      box-shadow: 0 4px 12px rgba(56,189,248,0.3);
-      transition: all 0.2s;
+      background: linear-gradient(135deg, #22d3ee, #818cf8);
+      color: #0a0e1a; border: none; padding: 13px 22px; border-radius: 999px;
+      cursor: pointer; font-weight: 700; font-size: 0.88rem;
+      box-shadow: 0 8px 24px rgba(99,102,241,0.4);
+      transition: transform 0.2s, box-shadow 0.2s; z-index: 50;
+      display: flex; align-items: center; gap: 8px;
     }
-    .refresh-btn:hover { background: #0ea5e9; transform: translateY(-2px); }
-    .refresh-btn:active { transform: translateY(0); }
+    .fab:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(99,102,241,0.5); }
+    .fab:active { transform: translateY(0); }
+    .fab .pulse {
+      width: 8px; height: 8px; border-radius: 50%; background: #0a0e1a;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 
-    @media (max-width: 600px) {
+    /* ── fastfetch-style system summary ─────────────────────── */
+    .fastfetch {
+      display: flex; gap: 32px; align-items: center;
+      flex-wrap: wrap;
+    }
+    .fastfetch-logo {
+      flex-shrink: 0; width: 132px; height: 132px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #22d3ee 0%, #818cf8 50%, #a78bfa 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 12px 36px -8px rgba(99,102,241,0.55), inset 0 0 0 1px rgba(255,255,255,0.12);
+      position: relative; overflow: hidden;
+    }
+    .fastfetch-logo::after {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.32), transparent 55%);
+    }
+    .fastfetch-logo svg { width: 78px; height: 78px; color: #0a0e1a; position: relative; z-index: 1; }
+    .fastfetch-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+    .ff-title {
+      font-size: 1.18rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px;
+      background: linear-gradient(100deg, #22d3ee, #818cf8, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .ff-title .ff-host { color: var(--muted); font-weight: 600; font-size: 0.9rem;
+      -webkit-text-fill-color: var(--muted); }
+    .ff-row {
+      display: flex; align-items: baseline; gap: 12px; font-size: 0.86rem;
+      line-height: 1.4;
+    }
+    .ff-key {
+      color: var(--cyan); font-weight: 700; min-width: 92px; flex-shrink: 0;
+      font-size: 0.78rem; letter-spacing: 0.02em;
+    }
+    .ff-val {
+      color: var(--text); font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      word-break: break-word; font-size: 0.84rem;
+    }
+    .ff-sep { color: var(--border-strong); margin: 0 -2px; }
+    .ff-bar { flex: 1; max-width: 220px; margin-left: 4px; }
+    .ff-bar .bar { height: 7px; }
+
+    @media (max-width: 640px) {
       .grid { grid-template-columns: 1fr; }
-      .stats { grid-template-columns: 1fr; }
+      .tiles { grid-template-columns: 1fr; }
+      .donut-row { flex-direction: column; }
+      .fastfetch { flex-direction: column; align-items: stretch; }
+      .fastfetch-logo { margin: 0 auto 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>ZFS Pool Dashboard <a href=https://github.com/paepckehh/zdash> [zDash] </a></h1>
-    <div id="dashboard" class="grid"></div>
-    <div id="loading" class="loading">
-      <div class="spinner"></div>
-      <div>Initializing dashboard...</div>
-    </div>
+  <div class="wrap">
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <div class="brand">zDash</div>
+          <div class="brand-sub">ZFS Pool &amp; ARC Cache Monitor · System Overview</div>
+        </div>
+        <a class="hero-link" href="https://github.com/paepckehh/zdash" target="_blank" rel="noopener">github ↗</a>
+      </div>
+      <div id="kpis" class="kpi-row"></div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="system" role="tab">System</button>
+      <button class="tab" data-tab="pools" role="tab">Pools</button>
+      <button class="tab" data-tab="arc" role="tab">ARC Cache</button>
+    </nav>
+
+    <section id="pane-system" class="pane active">
+      <div id="sys-grid" class="grid"></div>
+      <div id="sys-state" class="state">
+        <div class="spinner"></div>
+        <div>Initializing system data…</div>
+      </div>
+    </section>
+
+    <section id="pane-pools" class="pane">
+      <div id="pools-grid" class="grid"></div>
+      <div id="pools-state" class="state">
+        <div class="spinner"></div>
+        <div>Initializing pool data…</div>
+      </div>
+    </section>
+
+    <section id="pane-arc" class="pane">
+      <div id="arc-grid" class="grid"></div>
+      <div id="arc-state" class="state">
+        <div class="spinner"></div>
+        <div>Initializing ARC data…</div>
+      </div>
+    </section>
   </div>
-  <button class="refresh-btn" onclick="fetchData()">↻ Refresh</button>
+
+  <button class="fab" onclick="refreshAll()" title="Refresh now">
+    <span class="pulse"></span> Refresh
+  </button>
 
   <script>
-    const REFRESH_INTERVAL = 5000; // ms
-    let refreshTimer = null;
+    const REFRESH_MS = 5000;
+    let timer = null;
+    let activeTab = 'system';
+    // history for sparklines
+    const hitHistory = [];
+    const missHistory = [];
+    const sizeHistory = [];
+    const HIST_LEN = 60;
 
-    function getHealthClass(state) {
+    /* ── helpers ─────────────────────────────────────────────── */
+    function healthBadge(state) {
       const s = (state || '').toUpperCase();
-      if (s === 'ONLINE') return 'health-ONLINE';
-      if (s === 'DEGRADED') return 'health-DEGRADED';
-      if (s === 'OFFLINE' || s === 'FAULTED') return 'health-OFFLINE';
-      return 'health-ONLINE';
+      if (s === 'ONLINE') return 'b-online';
+      if (s === 'DEGRADED') return 'b-degraded';
+      if (s === 'OFFLINE' || s === 'FAULTED') return 'b-offline';
+      return 'b-online';
     }
 
+    function fmtBytes(b) {
+      if (b == null || isNaN(b)) return '—';
+      const u = ['B','KiB','MiB','GiB','TiB','PiB','EiB'];
+      let i = 0, v = Number(b);
+      while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+      return v.toFixed(v < 10 && i > 0 ? 2 : 1) + ' ' + u[i];
+    }
+
+    function fmtNum(n) {
+      if (n == null || isNaN(n)) return '—';
+      if (n < 1000) return String(n);
+      if (n < 1e6) return (n/1e3).toFixed(1) + 'K';
+      if (n < 1e9) return (n/1e6).toFixed(2) + 'M';
+      if (n < 1e12) return (n/1e9).toFixed(2) + 'B';
+      return (n/1e12).toFixed(2) + 'T';
+    }
+
+    function pct(n, d) {
+      if (!d) return 0;
+      return Math.min((n / d) * 100, 100);
+    }
+
+    /* donut chart generator: returns SVG markup for a conic-style donut */
+    function donutSVG(segments, size = 120, stroke = 16) {
+      const r = (size - stroke) / 2;
+      const c = 2 * Math.PI * r;
+      const cx = size / 2;
+      let offset = 0;
+      let paths = '';
+      for (const seg of segments) {
+        const len = (seg.value / 100) * c;
+        paths += `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none"
+          stroke="${seg.color}" stroke-width="${stroke}"
+          stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}"/>`;
+        offset += len;
+      }
+      return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+    }
+
+    function sparkline(data, color, height = 56) {
+      if (!data.length) return '<svg viewBox="0 0 100 ' + height + '"></svg>';
+      const max = Math.max(...data, 1);
+      const min = Math.min(...data, 0);
+      const range = max - min || 1;
+      const w = 100;
+      const step = data.length > 1 ? w / (data.length - 1) : w;
+      const pts = data.map((v, i) => {
+        const x = i * step;
+        const y = height - ((v - min) / range) * (height - 6) - 3;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      }).join(' ');
+      const areaPts = `0,${height} ${pts} ${w},${height}`;
+      const gid = 'g' + Math.random().toString(36).slice(2, 8);
+      return `
+        <svg viewBox="0 0 100 ${height}" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${color}" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon points="${areaPts}" fill="url(#${gid})"/>
+          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>`;
+    }
+
+    /* ── tab switching ───────────────────────────────────────── */
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        activeTab = btn.dataset.tab;
+        document.getElementById('pane-' + activeTab).classList.add('active');
+      });
+    });
+
+    /* ── KPI summary strip ───────────────────────────────────── */
+    function renderKPIs(pools, arc) {
+      const el = document.getElementById('kpis');
+      let poolCount = 0, onlineCount = 0, totalCap = 0, countCap = 0;
+      if (pools && pools.pools) {
+        poolCount = Object.keys(pools.pools).length;
+        for (const p of Object.values(pools.pools)) {
+          if ((p.state || '').toUpperCase() === 'ONLINE') onlineCount++;
+          const cap = parseFloat(p.properties?.capacity?.value) || 0;
+          totalCap += cap; countCap++;
+        }
+      }
+      const avgCap = countCap ? (totalCap / countCap) : 0;
+
+      const kpis = [];
+      kpis.push({ accent: 'pool', label: 'Pools', value: poolCount || '—', sub: `${onlineCount} online` });
+      kpis.push({ accent: 'pool', label: 'Avg Capacity', value: poolCount ? avgCap.toFixed(1) + '%' : '—', sub: 'across all pools' });
+
+      if (arc) {
+        const total = arc.hits + arc.misses;
+        const hitRatio = total ? (arc.hits / total * 100) : 0;
+        kpis.push({ accent: 'hit', label: 'ARC Hit Ratio', value: hitRatio.toFixed(2) + '%', sub: fmtNum(arc.hits) + ' hits' });
+        kpis.push({ accent: 'miss', label: 'ARC Misses', value: fmtNum(arc.misses), sub: 'since load' });
+        kpis.push({ accent: 'size', label: 'ARC Size', value: fmtBytes(arc.size), sub: 'max ' + fmtBytes(arc.c_max) });
+        const used = arc.c_max ? (arc.size / arc.c_max * 100) : 0;
+        kpis.push({ accent: 'arc', label: 'ARC Utilization', value: used.toFixed(1) + '%', sub: fmtBytes(arc.c) + ' target' });
+      } else {
+        kpis.push({ accent: 'arc', label: 'ARC Cache', value: '—', sub: 'unavailable' });
+      }
+
+      el.innerHTML = kpis.map(k => `
+        <div class="kpi" data-accent="${k.accent}">
+          <div class="kpi-label">${k.label}</div>
+          <div class="kpi-value">${k.value}</div>
+          <div class="kpi-sub">${k.sub}</div>
+        </div>`).join('');
+    }
+
+    /* ── System overview (fastfetch-style) ───────────────────── */
+    function osLogoSVG(osId) {
+      // A neutral, branded server glyph; a small letter badge conveys the
+      // detected distro family without shipping per-distro ASCII art.
+      const letter = (osId || 'z').charAt(0).toUpperCase();
+      return `
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="14" y="22" width="72" height="18" rx="4" fill="currentColor" opacity="0.9"/>
+          <rect x="14" y="46" width="72" height="18" rx="4" fill="currentColor" opacity="0.7"/>
+          <rect x="14" y="70" width="72" height="14" rx="4" fill="currentColor" opacity="0.5"/>
+          <circle cx="24" cy="31" r="3" fill="#0a0e1a"/>
+          <circle cx="24" cy="55" r="3" fill="#0a0e1a"/>
+          <circle cx="24" cy="77" r="3" fill="#0a0e1a"/>
+          <text x="62" y="86" font-family="Inter, sans-serif" font-size="34"
+                font-weight="800" fill="currentColor" text-anchor="middle">${letter}</text>
+        </svg>`;
+    }
+
+    function ffRow(key, valHtml) {
+      return `<div class="ff-row"><span class="ff-key">${key}</span><span class="ff-sep">:</span><span class="ff-val">${valHtml}</span></div>`;
+    }
+
+    function escapeHTML(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderSys(s) {
+      const grid = document.getElementById('sys-grid');
+      const state = document.getElementById('sys-state');
+      state.innerHTML = '';
+      if (!s) { grid.innerHTML = ''; return; }
+
+      const osLabel = s.os || s.os_id || (s.kernel || 'unknown');
+      const kernelFull = [s.kernel, s.kernel_release].filter(Boolean).join(' ');
+      const memUsedPct = s.memory_total_bytes
+        ? (s.memory_used_bytes / s.memory_total_bytes * 100) : 0;
+      const memColor = memUsedPct > 90 ? '#fb7185'
+        : memUsedPct > 75 ? '#fbbf24' : '#818cf8';
+      const loadStr = (s.load1 != null && s.load1 !== 0)
+        ? `${s.load1.toFixed(2)} ${s.load5.toFixed(2)} ${s.load15.toFixed(2)}`
+        : '—';
+      const swapStr = s.swap_total_bytes
+        ? `${fmtBytes(s.swap_total_bytes - s.swap_free_bytes)} / ${fmtBytes(s.swap_total_bytes)}`
+        : 'disabled';
+
+      const rows = [
+        ffRow('OS', escapeHTML(osLabel + (s.os_version ? ' ' + s.os_version : ''))),
+        ffRow('Host', escapeHTML(s.hostname || '—')),
+        ffRow('Kernel', escapeHTML(kernelFull || '—')),
+        ffRow('Kernel ver', escapeHTML(s.kernel_version || '—')),
+        ffRow('Uptime', escapeHTML(s.uptime || '—')),
+        ffRow('Packages', escapeHTML(s.processes ? s.processes.toLocaleString() : '—')),
+        ffRow('Shell', escapeHTML(s.shell || '—')),
+        ffRow('Terminal', escapeHTML(s.terminal || '—')),
+        ffRow('CPU', `${escapeHTML(s.cpu_model || '—')} <span class="ff-sep">·</span> ${s.cpu_cores || 0} cores`),
+        ffRow('Memory',
+          `${fmtBytes(s.memory_used_bytes)} / ${fmtBytes(s.memory_total_bytes)}` +
+          (s.memory_total_bytes
+            ? ` <span class="ff-bar bar"><span class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#a78bfa)"></span></span>`
+            : '')),
+        ffRow('Swap', escapeHTML(swapStr)),
+        ffRow('Load', escapeHTML(loadStr)),
+        ffRow('Machine', escapeHTML(s.machine || '—')),
+      ];
+
+      grid.innerHTML = `
+        <div class="card" style="grid-column:1 / -1">
+          <div class="fastfetch">
+            <div class="fastfetch-logo">${osLogoSVG(s.os_id)}</div>
+            <div class="fastfetch-rows">
+              <div class="ff-title">${escapeHTML(osLabel)} <span class="ff-host">@ ${escapeHTML(s.hostname || 'host')}</span></div>
+              ${rows.join('')}
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Uptime</span>
+            <span class="badge ${s.uptime_seconds > 0 ? 'b-online' : 'b-offline'}">live</span></div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Up</div><div class="tile-value cyan">${escapeHTML(s.uptime || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Since</div><div class="tile-value violet">${s.boot_time ? new Date(s.boot_time * 1000).toLocaleDateString() : '—'}</div></div>
+            <div class="tile"><div class="tile-label">Procs</div><div class="tile-value emerald">${s.processes ? s.processes.toLocaleString() : '—'}</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Memory</span>
+            <span class="badge ${memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online'}">${memUsedPct.toFixed(0)}%</span>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Used</div><div class="tile-value violet">${fmtBytes(s.memory_used_bytes)}</div></div>
+            <div class="tile"><div class="tile-label">Available</div><div class="tile-value emerald">${fmtBytes(s.memory_available_bytes)}</div></div>
+            <div class="tile"><div class="tile-label">Total</div><div class="tile-value cyan">${fmtBytes(s.memory_total_bytes)}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Used</span><span>${memUsedPct.toFixed(1)}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#a78bfa)"></div></div>
+          </div>
+          <div class="muted-note">cached ${fmtBytes(s.memory_cached_bytes)} · swap ${escapeHTML(swapStr)}</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">CPU</span>
+            <span class="badge b-online">${s.cpu_cores || 0} cores</span></div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan" style="font-size:0.88rem">${escapeHTML(s.cpu_model || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Arch</div><div class="tile-value violet">${escapeHTML(s.machine || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Load 1m</div><div class="tile-value ${s.load1 > s.cpu_cores ? 'amber' : 'emerald'}">${s.load1 != null ? s.load1.toFixed(2) : '—'}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Load avg (1 / 5 / 15 min)</span><span>${escapeHTML(loadStr)}</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${s.cpu_cores ? Math.min(s.load1 / s.cpu_cores * 100, 100) : 0}%;background:linear-gradient(90deg,#22d3ee,#818cf8)"></div></div>
+          </div>
+          <div class="muted-note">${escapeHTML(s.kernel || '')} ${escapeHTML(s.kernel_release || '')}</div>
+        </div>`;
+    }
+
+    async function fetchSysInfo() {
+      try {
+        const res = await fetch('/api/sysinfo');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderSys(data);
+        return data;
+      } catch (err) {
+        const el = document.getElementById('sys-state');
+        document.getElementById('sys-grid').innerHTML = '';
+        el.innerHTML = `<div class="err">⚠️ Failed to load system data<div class="err-detail">${err.message}</div></div>`;
+        return null;
+      }
+    }
+
+    /* ── Pool rendering ──────────────────────────────────────── */
     function renderVdevs(vdevs, depth = 0) {
       if (!vdevs) return '';
       let html = '';
-      for (const [name, vdev] of Object.entries(vdevs)) {
-        const indent = depth * 16;
-        const healthClass = getHealthClass(vdev.state);
-        const size = vdev.properties.size.value || '-';
-        const path = vdev.path || 'N/A';
+      for (const [name, v] of Object.entries(vdevs)) {
+        const indent = depth * 18;
+        const hc = healthBadge(v.state);
+        const size = v.properties?.size?.value || '—';
+        const path = v.path || 'N/A';
         html += `
           <div class="vdev" style="margin-left:${indent}px">
             <span class="vdev-name">${name}</span>
             <div class="vdev-info">
-              <span class="vdev-badge ${healthClass}">${vdev.state}</span>
+              <span class="badge ${hc}">${v.state}</span>
               <span>${size}</span>
-              <span style="font-size:0.75rem;opacity:0.7">${path}</span>
+              <span style="font-size:0.72rem;opacity:0.65">${path}</span>
             </div>
-          </div>
-        `;
-        if (vdev.vdevs) html += renderVdevs(vdev.vdevs, depth + 1);
+          </div>`;
+        if (v.vdevs) html += renderVdevs(v.vdevs, depth + 1);
       }
       return html;
     }
 
     function renderPool(name, pool) {
-      const capVal = parseFloat(pool.properties.capacity.value) || 0;
-      const fragVal = pool.properties.fragmentation.value || '-';
-      const healthClass = getHealthClass(pool.state);
+      const cap = parseFloat(pool.properties.capacity.value) || 0;
+      const frag = pool.properties.fragmentation.value || '—';
+      const dedup = pool.properties.dedupratio.value || '—';
+      const hc = healthBadge(pool.state);
+      const capColor = cap > 90 ? 'rose' : cap > 75 ? 'amber' : 'cyan';
+      const fillGrad = cap > 90
+        ? 'linear-gradient(90deg,#fb7185,#f472b6)'
+        : cap > 75
+          ? 'linear-gradient(90deg,#fbbf24,#fb7185)'
+          : 'linear-gradient(90deg,#22d3ee,#818cf8)';
 
       return `
         <div class="card">
-          <div class="pool-header">
-            <span class="pool-name">${name}</span>
-            <span class="health-badge ${healthClass}">${pool.state}</span>
+          <div class="card-head">
+            <span class="card-title">${name}</span>
+            <span class="badge ${hc}">${pool.state}</span>
           </div>
-          <div class="stats">
-            <div class="stat-box"><div class="stat-label">Total Size</div><div class="stat-value">${pool.properties.size.value}</div></div>
-            <div class="stat-box"><div class="stat-label">Allocated</div><div class="stat-value">${pool.properties.allocated.value}</div></div>
-            <div class="stat-box"><div class="stat-label">Free</div><div class="stat-value">${pool.properties.free.value}</div></div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Total</div><div class="tile-value cyan">${pool.properties.size.value}</div></div>
+            <div class="tile"><div class="tile-label">Allocated</div><div class="tile-value violet">${pool.properties.allocated.value}</div></div>
+            <div class="tile"><div class="tile-label">Free</div><div class="tile-value emerald">${pool.properties.free.value}</div></div>
           </div>
-          <div class="progress-container">
-            <div class="progress-header">
-              <span>Capacity</span>
-              <span>${capVal.toFixed(2)}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:${Math.min(capVal, 100)}%"></div>
-            </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Capacity</span><span>${cap.toFixed(2)}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${Math.min(cap,100)}%;background:${fillGrad}"></div></div>
           </div>
-          <div class="frag-info">Fragmentation: ${fragVal}</div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Fragmentation</div><div class="tile-value ${parseFloat(frag) > 50 ? 'amber' : 'emerald'}">${frag}</div></div>
+            <div class="tile"><div class="tile-label">Dedup</div><div class="tile-value cyan">${dedup}</div></div>
+            <div class="tile"><div class="tile-label">Health</div><div class="tile-value ${pool.state === 'ONLINE' ? 'emerald' : 'amber'}">${pool.properties.health.value}</div></div>
+          </div>
           <div class="vdevs">
             <div class="vdevs-title">Virtual Devices</div>
             ${renderVdevs(pool.vdevs)}
           </div>
-        </div>
-      `;
+        </div>`;
     }
 
-    async function fetchData() {
+    async function fetchPools() {
       try {
         const res = await fetch('/api/zpool');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        
-        const dashboard = document.getElementById('dashboard');
-        const loading = document.getElementById('loading');
-        
-        if (loading) loading.style.display = 'none';
-        dashboard.innerHTML = '';
-
-        if (!data.pools || Object.keys(data.pools).length === 0) {
-          dashboard.innerHTML = '<div class="loading">No pools found or command returned empty data.</div>';
-          return;
-        }
-
-        for (const [name, pool] of Object.entries(data.pools)) {
-          dashboard.innerHTML += renderPool(name, pool);
-        }
+        renderPools(data);
+        return data;
       } catch (err) {
-        console.error('Dashboard fetch failed:', err);
-        document.getElementById('dashboard').innerHTML = `
-          <div class="loading" style="color:var(--danger)">
-            <div>⚠️ Failed to load data</div>
-            <div style="font-size:0.85rem;opacity:0.7;margin-top:8px">${err.message}</div>
-          </div>`;
+        const el = document.getElementById('pools-state');
+        document.getElementById('pools-grid').innerHTML = '';
+        el.innerHTML = `<div class="err">⚠️ Failed to load pool data<div class="err-detail">${err.message}</div></div>`;
+        return null;
       }
     }
 
-    // Initial load & auto-refresh
-    fetchData();
-    refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+    function renderPools(data) {
+      const grid = document.getElementById('pools-grid');
+      const state = document.getElementById('pools-state');
+      grid.innerHTML = '';
+      if (!data || !data.pools || Object.keys(data.pools).length === 0) {
+        state.innerHTML = 'No pools found or command returned empty data.';
+        return;
+      }
+      state.innerHTML = '';
+      for (const [name, pool] of Object.entries(data.pools)) {
+        grid.innerHTML += renderPool(name, pool);
+      }
+    }
 
-    // Pause refresh when tab is hidden to save resources
+    /* ── ARC rendering ────────────────────────────────────────── */
+    function renderARC(arc) {
+      const grid = document.getElementById('arc-grid');
+      const state = document.getElementById('arc-state');
+      state.innerHTML = '';
+
+      const total = arc.hits + arc.misses;
+      const hitPct = total ? (arc.hits / total * 100) : 0;
+      const missPct = total ? (arc.misses / total * 100) : 0;
+
+      // donut: MRU vs MFU hits proportion
+      const mruHits = arc.mru_hits || 0;
+      const mfuHits = arc.mfu_hits || 0;
+      const totalHit = mruHits + mfuHits || 1;
+      const mruPct = (mruHits / totalHit) * 100;
+      const mfuPct = (mfuHits / totalHit) * 100;
+
+      // ARC size utilization donut
+      const sizePct = arc.c_max ? (arc.size / arc.c_max * 100) : 0;
+      const targetPct = arc.c_max ? (arc.c / arc.c_max * 100) : 0;
+
+      // demand vs prefetch
+      const demHits = arc.demand_data_hits + arc.demand_metadata_hits;
+      const preHits = arc.prefetch_data_hits + arc.prefetch_metadata_hits;
+      const demMisses = arc.demand_data_misses + arc.demand_metadata_misses;
+      const preMisses = arc.prefetch_data_misses + arc.prefetch_metadata_misses;
+
+      // update history for sparklines
+      hitHistory.push(hitPct);
+      missHistory.push(arc.misses);
+      sizeHistory.push(arc.size);
+      if (hitHistory.length > HIST_LEN) hitHistory.shift();
+      if (missHistory.length > HIST_LEN) missHistory.shift();
+      if (sizeHistory.length > HIST_LEN) sizeHistory.shift();
+
+      grid.innerHTML = `
+        <!-- Hit ratio donut card -->
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">Cache Hit Ratio</span>
+            <span class="badge ${hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline'}">${hitPct.toFixed(2)}%</span>
+          </div>
+          <div class="donut-row">
+            <div class="donut">
+              ${donutSVG([
+                { value: hitPct, color: '#34d399' },
+                { value: missPct, color: '#fb7185' }
+              ])}
+              <div class="donut-center">
+                <div class="donut-pct" style="color:var(--emerald)">${hitPct.toFixed(1)}%</div>
+                <div class="donut-label">hits</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="leg-item"><span class="leg-dot" style="background:#34d399"></span>Hits<span class="leg-val">${fmtNum(arc.hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#fb7185"></span>Misses<span class="leg-val">${fmtNum(arc.misses)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#818cf8"></span>I/O hits<span class="leg-val">${fmtNum(arc.iohits)}</span></div>
+            </div>
+          </div>
+          <div class="spark">${sparkline(hitHistory, '#34d399')}</div>
+          <div class="muted-note">hit ratio over the last ${hitHistory.length} samples</div>
+        </div>
+
+        <!-- ARC size card -->
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">ARC Memory</span>
+            <span class="badge b-online">${sizePct.toFixed(0)}% full</span>
+          </div>
+          <div class="donut-row">
+            <div class="donut">
+              ${donutSVG([
+                { value: sizePct, color: '#818cf8' },
+                { value: Math.max(targetPct - sizePct, 0), color: '#22d3ee' },
+                { value: Math.max(100 - targetPct, 0), color: '#1e293b' }
+              ])}
+              <div class="donut-center">
+                <div class="donut-pct" style="color:var(--violet)">${fmtBytes(arc.size)}</div>
+                <div class="donut-label">used</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="leg-item"><span class="leg-dot" style="background:#818cf8"></span>Current<span class="leg-val">${fmtBytes(arc.size)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#22d3ee"></span>Target<span class="leg-val">${fmtBytes(arc.c)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#34d399"></span>Min<span class="leg-val">${fmtBytes(arc.c_min)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#fb7185"></span>Max<span class="leg-val">${fmtBytes(arc.c_max)}</span></div>
+            </div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Size vs Max</span><span>${sizePct.toFixed(1)}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${sizePct}%;background:linear-gradient(90deg,#818cf8,#a78bfa)"></div></div>
+          </div>
+        </div>
+
+        <!-- MRU vs MFU card -->
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">MRU vs MFU Hits</span></div>
+          <div class="donut-row">
+            <div class="donut">
+              ${donutSVG([
+                { value: mruPct, color: '#fbbf24' },
+                { value: mfuPct, color: '#22d3ee' }
+              ])}
+              <div class="donut-center">
+                <div class="donut-pct" style="color:var(--cyan)">${mfuPct.toFixed(0)}%</div>
+                <div class="donut-label">MFU</div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="leg-item"><span class="leg-dot" style="background:#fbbf24"></span>MRU hits<span class="leg-val">${fmtNum(mruHits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#22d3ee"></span>MFU hits<span class="leg-val">${fmtNum(mfuHits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#f472b6"></span>MRU ghost<span class="leg-val">${fmtNum(arc.mru_ghost_hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#a78bfa"></span>MFU ghost<span class="leg-val">${fmtNum(arc.mfu_ghost_hits)}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Demand vs Prefetch card -->
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">Demand vs Prefetch</span></div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value emerald">${fmtNum(demHits)}</div></div>
+            <div class="tile"><div class="tile-label">Demand Miss</div><div class="tile-value rose">${fmtNum(demMisses)}</div></div>
+            <div class="tile"><div class="tile-label">Prefetch Hits</div><div class="tile-value cyan">${fmtNum(preHits)}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Demand hit rate</span><span>${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100).toFixed(1) : 0}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100) : 0}%;background:linear-gradient(90deg,#34d399,#22d3ee)"></div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Prefetch hit rate</span><span>${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100).toFixed(1) : 0}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100) : 0}%;background:linear-gradient(90deg,#fbbf24,#fb7185)"></div></div>
+          </div>
+        </div>
+
+        <!-- Memory breakdown card -->
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">Memory Breakdown</span></div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Data</div><div class="tile-value cyan">${fmtBytes(arc.data_size)}</div></div>
+            <div class="tile"><div class="tile-label">Metadata</div><div class="tile-value violet">${fmtBytes(arc.metadata_size)}</div></div>
+            <div class="tile"><div class="tile-label">Headers</div><div class="tile-value amber">${fmtBytes(arc.hdr_size)}</div></div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Dbuf</div><div class="tile-value emerald">${fmtBytes(arc.dbuf_size)}</div></div>
+            <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value emerald">${fmtBytes(arc.dnode_size)}</div></div>
+            <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value rose">${fmtBytes(arc.deleted)}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>System memory available</span><span>${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100).toFixed(1) : 0}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100) : 0}%;background:linear-gradient(90deg,#34d399,#22d3ee)"></div></div>
+          </div>
+          <div class="muted-note">free ${fmtBytes(arc.memory_free_bytes)} / total ${fmtBytes(arc.memory_all_bytes)}</div>
+        </div>
+
+        <!-- L2ARC card (only if present) -->
+        ${arc.l2_ndev > 0 || arc.l2_size > 0 ? `
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">L2ARC</span>
+            <span class="badge b-online">${arc.l2_ndev} device${arc.l2_ndev !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">L2 Size</div><div class="tile-value violet">${fmtBytes(arc.l2_size)}</div></div>
+            <div class="tile"><div class="tile-label">L2 Asize</div><div class="tile-value cyan">${fmtBytes(arc.l2_asize)}</div></div>
+            <div class="tile"><div class="tile-label">L2 Hits</div><div class="tile-value emerald">${fmtNum(arc.l2_hits)}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>L2 hit rate</span><span>${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100).toFixed(1) : 0}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100) : 0}%;background:linear-gradient(90deg,#a78bfa,#22d3ee)"></div></div>
+          </div>
+        </div>` : `
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">L2ARC</span></div>
+          <div class="state" style="padding:30px 10px">No L2ARC device detected</div>
+          <div class="muted-note">attach a cache vdev to enable</div>
+        </div>`}
+      `;
+    }
+
+    async function fetchARC() {
+      try {
+        const res = await fetch('/api/arc');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderARC(data);
+        return data;
+      } catch (err) {
+        const el = document.getElementById('arc-state');
+        document.getElementById('arc-grid').innerHTML = '';
+        el.innerHTML = `<div class="err">⚠️ Failed to load ARC data<div class="err-detail">${err.message}</div></div>`;
+        return null;
+      }
+    }
+
+    /* ── orchestration ────────────────────────────────────────── */
+    async function refreshAll() {
+      const [sys, pools, arc] = await Promise.all([fetchSysInfo(), fetchPools(), fetchARC()]);
+      renderKPIs(pools, arc);
+    }
+
+    refreshAll();
+    timer = setInterval(refreshAll, REFRESH_MS);
+
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) clearInterval(refreshTimer);
-      else refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+      if (document.hidden) { clearInterval(timer); timer = null; }
+      else if (!timer) { timer = setInterval(refreshAll, REFRESH_MS); }
     });
   </script>
 </body>

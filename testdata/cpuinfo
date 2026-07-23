@@ -1,0 +1,32 @@
+processor	: 0
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 142
+model name	: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+stepping	: 11
+cpu MHz		: 1992.000
+cache size	: 8192 KB
+core id		: 0
+siblings	: 8
+cpu cores	: 4
+
+processor	: 1
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 142
+model name	: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+cpu MHz		: 1992.000
+core id		: 1
+cpu cores	: 4
+
+processor	: 2
+vendor_id	: GenuineIntel
+cpu family	: 6
+model name	: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+cpu cores	: 4
+
+processor	: 3
+vendor_id	: GenuineIntel
+cpu family	: 6
+model name	: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+cpu cores	: 4
