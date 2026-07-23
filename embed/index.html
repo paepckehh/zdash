@@ -3,324 +3,445 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>zDash — ZFS Pool & ARC Dashboard</title>
+  <title>zDash — ZFS Pool & ARC Dashboard · Phosphor Storage Console</title>
   <style>
     :root {
-      --bg: #0a0e1a;
-      --bg-grad: radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,0.12), transparent 60%),
-                  radial-gradient(900px 500px at 10% 110%, rgba(6,182,212,0.10), transparent 55%),
-                  #0a0e1a;
-      --card: rgba(23,30,48,0.72);
-      --card-2: rgba(30,41,59,0.6);
-      --card-hover: rgba(40,52,76,0.85);
-      --text: #e6edf6;
-      --muted: #8b9bb4;
-      --dim: #5a6b86;
-      --border: rgba(99,116,139,0.22);
-      --border-strong: rgba(148,163,184,0.35);
+      /* phosphor palette — warm amber CRT on warm near-black */
+      --ink: #0b0907;
+      --ink-2: #14100a;
+      --screen: #100c06;
+      --panel: rgba(22,16,9,0.82);
+      --panel-2: rgba(30,22,12,0.6);
+      --panel-hover: rgba(40,30,16,0.9);
+      --line: rgba(255,182,72,0.16);
+      --line-strong: rgba(255,182,72,0.34);
+      --text: #ffe9c4;
+      --muted: #b5965a;
+      --dim: #6a5530;
 
-      --cyan: #22d3ee;
-      --indigo: #818cf8;
-      --violet: #a78bfa;
-      --emerald: #34d399;
-      --amber: #fbbf24;
-      --rose: #fb7185;
-      --pink: #f472b6;
-      --blue: #60a5fa;
+      --phosphor: #ffb648;
+      --phosphor-bright: #ffd989;
+      --mint: #5ee3a0;
+      --cyan: #5fd6e8;
+      --crimson: #ff5d5d;
+      --violet: #c9a3ff;
+      --amber-warn: #ffc24b;
 
-      --pool-grad: linear-gradient(135deg, #22d3ee, #818cf8);
-      --arc-grad: linear-gradient(135deg, #34d399, #22d3ee);
-      --hit-grad: linear-gradient(135deg, #34d399, #fbbf24);
-      --miss-grad: linear-gradient(135deg, #fb7185, #f472b6);
-      --size-grad: linear-gradient(135deg, #818cf8, #a78bfa);
+      --grad-mint: linear-gradient(90deg, #5ee3a0, #5fd6e8);
+      --grad-amber: linear-gradient(90deg, #ffb648, #ffd989);
+      --grad-warn: linear-gradient(90deg, #ffc24b, #ff5d5d);
+      --grad-crimson: linear-gradient(90deg, #ff5d5d, #c9a3ff);
 
-      --glass: blur(14px);
-      --shadow: 0 10px 40px -10px rgba(0,0,0,0.6);
-      --radius: 18px;
-      --radius-sm: 12px;
+      --glow: 0 0 6px rgba(255,182,72,0.55), 0 0 14px rgba(255,182,72,0.22);
+      --glow-mint: 0 0 6px rgba(94,227,160,0.55), 0 0 14px rgba(94,227,160,0.2);
+      --glow-crimson: 0 0 6px rgba(255,93,93,0.55), 0 0 14px rgba(255,93,93,0.2);
+      --shadow: 0 12px 40px -12px rgba(0,0,0,0.7);
+      --radius: 6px;
+      --radius-sm: 4px;
+      --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body { background: var(--ink); }
     body {
-      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-grad);
-      background-attachment: fixed;
+      font-family: var(--mono);
       color: var(--text);
       min-height: 100vh;
-      padding: 28px 20px 96px;
+      padding: 24px 18px 110px;
       line-height: 1.5;
+      letter-spacing: 0.01em;
       -webkit-font-smoothing: antialiased;
+      position: relative;
+      overflow-x: hidden;
     }
 
-    .wrap { max-width: 1280px; margin: 0 auto; }
+    /* CRT screen tint + vignette */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: 1000; pointer-events: none;
+      background:
+        radial-gradient(140% 120% at 50% 45%, transparent 55%, rgba(0,0,0,0.55) 100%),
+        linear-gradient(180deg, rgba(255,182,72,0.025), rgba(0,0,0,0.05));
+    }
+    /* scanlines */
+    body::after {
+      content: ""; position: fixed; inset: 0; z-index: 1001; pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 1px, transparent 3px
+      );
+      mix-blend-mode: multiply;
+      animation: scan-drift 8s linear infinite;
+    }
+    @keyframes scan-drift { from { background-position: 0 0; } to { background-position: 0 6px; } }
 
-    /* ── Hero / header ─────────────────────────────────────────── */
-    .hero { margin-bottom: 28px; }
+    .wrap { max-width: 1320px; margin: 0 auto; position: relative; z-index: 2; }
+
+    /* ── Hero ─────────────────────────────────────────────────── */
+    .hero { margin-bottom: 26px; }
     .hero-top {
-      display: flex; align-items: baseline; justify-content: space-between;
-      flex-wrap: wrap; gap: 12px; margin-bottom: 6px;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px; margin-bottom: 4px;
     }
+    .brand-block { display: flex; flex-direction: column; gap: 2px; }
     .brand {
-      font-size: clamp(1.7rem, 4vw, 2.6rem); font-weight: 800;
-      letter-spacing: -0.02em; line-height: 1.05;
-      background: linear-gradient(100deg, #22d3ee 0%, #818cf8 45%, #a78bfa 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 700;
+      letter-spacing: 0.04em; line-height: 1; color: var(--phosphor-bright);
+      text-shadow: var(--glow);
+      display: flex; align-items: baseline; gap: 2px;
     }
+    .brand .cursor {
+      display: inline-block; width: 0.55ch; height: 0.9em; background: var(--phosphor-bright);
+      margin-left: 4px; animation: blink 1.05s steps(2) infinite;
+      box-shadow: var(--glow);
+    }
+    @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
     .brand-sub {
-      font-size: 0.82rem; color: var(--muted); font-weight: 500;
-      letter-spacing: 0.04em;
+      font-size: 0.78rem; color: var(--muted); letter-spacing: 0.16em;
+      text-transform: uppercase;
     }
+    .brand-sub .dot { color: var(--phosphor); }
+    .hero-meta {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+      font-size: 0.72rem; color: var(--dim); letter-spacing: 0.08em;
+    }
+    .hero-meta .live {
+      display: inline-flex; align-items: center; gap: 7px; color: var(--mint);
+      text-shadow: var(--glow-mint); text-transform: uppercase; font-size: 0.72rem;
+    }
+    .hero-meta .live::before {
+      content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mint);
+      box-shadow: var(--glow-mint); animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 0.45; } 50% { opacity: 1; } }
     .hero-link {
-      color: var(--dim); font-size: 0.8rem; text-decoration: none;
-      border: 1px solid var(--border); padding: 6px 12px; border-radius: 999px;
-      transition: all 0.2s;
+      color: var(--muted); font-size: 0.72rem; text-decoration: none;
+      border: 1px solid var(--line); padding: 5px 11px; border-radius: var(--radius-sm);
+      transition: all 0.18s; letter-spacing: 0.06em;
     }
-    .hero-link:hover { color: var(--cyan); border-color: var(--cyan); }
+    .hero-link:hover { color: var(--phosphor-bright); border-color: var(--phosphor); text-shadow: var(--glow); }
 
+    /* ── KPI strip ────────────────────────────────────────────── */
     .kpi-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 14px; margin-top: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1px; margin-top: 18px;
+      background: var(--line); border: 1px solid var(--line);
+      border-radius: var(--radius); overflow: hidden;
     }
     .kpi {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 16px 18px;
-      backdrop-filter: var(--glass); position: relative; overflow: hidden;
-      transition: transform 0.25s, border-color 0.25s;
+      background: var(--panel); padding: 14px 16px; position: relative;
+      transition: background 0.2s;
     }
-    .kpi:hover { transform: translateY(-3px); border-color: var(--border-strong); }
-    .kpi::before {
-      content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
-      background: var(--accent, var(--pool-grad)); opacity: 0.9;
-    }
-    .kpi[data-accent="arc"] { --accent: var(--arc-grad); }
-    .kpi[data-accent="hit"] { --accent: var(--hit-grad); }
-    .kpi[data-accent="miss"] { --accent: var(--miss-grad); }
-    .kpi[data-accent="size"] { --accent: var(--size-grad); }
-    .kpi[data-accent="pool"] { --accent: var(--pool-grad); }
+    .kpi:hover { background: var(--panel-hover); }
     .kpi-label {
-      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
-      color: var(--muted); font-weight: 600;
+      font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.18em;
+      color: var(--muted);
     }
     .kpi-value {
-      font-size: 1.5rem; font-weight: 700; margin-top: 4px;
-      font-variant-numeric: tabular-nums;
-      background: var(--accent, var(--pool-grad));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: 1.55rem; font-weight: 700; margin-top: 4px;
+      font-variant-numeric: tabular-nums; color: var(--phosphor-bright);
+      text-shadow: var(--glow); letter-spacing: 0.01em;
     }
-    .kpi-sub { font-size: 0.72rem; color: var(--dim); margin-top: 2px; }
+    .kpi[data-accent="hit"] .kpi-value { color: var(--mint); text-shadow: var(--glow-mint); }
+    .kpi[data-accent="miss"] .kpi-value { color: var(--crimson); text-shadow: var(--glow-crimson); }
+    .kpi[data-accent="size"] .kpi-value { color: var(--cyan); text-shadow: 0 0 6px rgba(95,214,232,0.5); }
+    .kpi[data-accent="arc"] .kpi-value { color: var(--cyan); text-shadow: 0 0 6px rgba(95,214,232,0.5); }
+    .kpi-sub { font-size: 0.68rem; color: var(--dim); margin-top: 3px; letter-spacing: 0.04em; }
+    .kpi-bar {
+      position: absolute; left: 0; bottom: 0; height: 2px;
+      background: var(--phosphor); box-shadow: var(--glow); width: 0;
+      transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
+    }
+    .kpi[data-accent="hit"] .kpi-bar { background: var(--mint); box-shadow: var(--glow-mint); }
+    .kpi[data-accent="miss"] .kpi-bar { background: var(--crimson); box-shadow: var(--glow-crimson); }
+    .kpi[data-accent="size"] .kpi-bar,
+    .kpi[data-accent="arc"] .kpi-bar { background: var(--cyan); box-shadow: 0 0 6px rgba(95,214,232,0.5); }
 
-    /* ── Tabs ──────────────────────────────────────────────────── */
+    /* ── Tabs ─────────────────────────────────────────────────── */
     .tabs {
-      display: flex; gap: 6px; margin: 8px 0 22px;
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 999px; padding: 5px; width: fit-content;
-      backdrop-filter: var(--glass);
+      display: flex; gap: 0; margin: 14px 0 22px;
+      border-bottom: 1px solid var(--line); width: 100%;
+      overflow-x: auto;
     }
     .tab {
       border: none; background: transparent; color: var(--muted);
-      padding: 9px 22px; border-radius: 999px; cursor: pointer;
-      font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em;
-      transition: all 0.2s;
+      padding: 10px 18px 12px; cursor: pointer;
+      font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      position: relative; transition: color 0.18s; white-space: nowrap;
     }
+    .tab::before { content: "[ "; opacity: 0.4; }
+    .tab::after { content: " ]"; opacity: 0.4; }
     .tab:hover { color: var(--text); }
-    .tab.active {
-      color: #0a0e1a; font-weight: 700;
-      background: var(--pool-grad);
-      box-shadow: 0 4px 14px rgba(99,102,241,0.3);
-    }
-    .tab[data-tab="arc"].active { background: var(--arc-grad); box-shadow: 0 4px 14px rgba(52,211,153,0.3); }
-    .pane { display: none; animation: fadeIn 0.35s ease; }
-    .pane.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .tab.active { color: var(--phosphor-bright); text-shadow: var(--glow); }
+    .tab.active::before, .tab.active::after { opacity: 1; color: var(--phosphor); }
+    .tab.active::after { content: " ]_"; }
+    .tab:focus-visible { outline: 1px dashed var(--phosphor); outline-offset: -3px; }
 
-    /* ── Grid / cards ──────────────────────────────────────────── */
+    .pane { display: none; }
+    .pane.active { display: block; animation: power-on 0.42s ease; }
+    @keyframes power-on {
+      0% { opacity: 0; filter: brightness(2) blur(1px); transform: translateY(4px); }
+      8% { opacity: 1; filter: brightness(2.4); }
+      14% { filter: brightness(0.5); }
+      18% { filter: brightness(1.6); }
+      100% { opacity: 1; filter: brightness(1); transform: none; }
+    }
+    .tab[hidden], .pane[hidden] { display: none !important; }
+
+    /* ── Grid / cards ─────────────────────────────────────────── */
     .grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 22px;
+      gap: 16px;
     }
     .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 22px;
-      backdrop-filter: var(--glass); box-shadow: var(--shadow);
-      position: relative; overflow: hidden;
-      transition: transform 0.25s, border-color 0.25s, background 0.25s;
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 18px 20px;
+      box-shadow: var(--shadow); position: relative; overflow: hidden;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
     }
-    .card:hover {
-      transform: translateY(-4px); border-color: var(--border-strong);
-      background: var(--card-hover);
+    .card:hover { border-color: var(--line-strong); background: var(--panel-hover); transform: translateY(-2px); }
+    .card[data-accent="arc"] { border-left: 2px solid var(--cyan); }
+    .card[data-accent="pool"] { border-left: 2px solid var(--phosphor); }
+    .card-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px; gap: 10px;
     }
-    .card::before {
-      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-      background: var(--card-accent, var(--pool-grad)); opacity: 0;
-      transition: opacity 0.3s;
+    .card-title {
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--phosphor-bright);
+      text-shadow: var(--glow);
     }
-    .card:hover::before { opacity: 1; }
-    .card[data-accent="arc"] { --card-accent: var(--arc-grad); }
-
-    .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-    .card-title { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
     .badge {
-      padding: 4px 11px; border-radius: 999px; font-size: 0.7rem;
-      font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 3px 9px; border-radius: var(--radius-sm); font-size: 0.66rem;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
+      border: 1px solid transparent;
     }
-    .b-online { background: rgba(52,211,153,0.16); color: var(--emerald); }
-    .b-degraded { background: rgba(251,191,36,0.16); color: var(--amber); }
-    .b-offline { background: rgba(251,113,133,0.16); color: var(--rose); }
+    .b-online { background: rgba(94,227,160,0.1); color: var(--mint); border-color: rgba(94,227,160,0.35); text-shadow: var(--glow-mint); }
+    .b-degraded { background: rgba(255,194,75,0.1); color: var(--amber-warn); border-color: rgba(255,194,75,0.4); }
+    .b-offline { background: rgba(255,93,93,0.1); color: var(--crimson); border-color: rgba(255,93,93,0.4); text-shadow: var(--glow-crimson); }
 
     /* stat tiles */
-    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
     .tile {
-      background: rgba(255,255,255,0.035); padding: 12px 10px;
-      border-radius: var(--radius-sm); text-align: center;
-      border: 1px solid rgba(255,255,255,0.04);
+      background: rgba(255,182,72,0.03); padding: 10px 8px;
+      border: 1px solid var(--line); border-radius: var(--radius-sm);
+      text-align: center;
     }
-    .tile-label { font-size: 0.66rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
-    .tile-value { font-size: 1.05rem; font-weight: 600; margin-top: 3px; color: var(--text); font-variant-numeric: tabular-nums; }
-    .tile-value.cyan { color: var(--cyan); }
-    .tile-value.emerald { color: var(--emerald); }
-    .tile-value.amber { color: var(--amber); }
-    .tile-value.rose { color: var(--rose); }
-    .tile-value.violet { color: var(--violet); }
+    .tile-label { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.14em; }
+    .tile-value {
+      font-size: 1rem; font-weight: 700; margin-top: 3px; color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .tile-value.cyan { color: var(--cyan); text-shadow: 0 0 5px rgba(95,214,232,0.4); }
+    .tile-value.mint { color: var(--mint); text-shadow: var(--glow-mint); }
+    .tile-value.amber { color: var(--phosphor-bright); text-shadow: var(--glow); }
+    .tile-value.crimson { color: var(--crimson); text-shadow: var(--glow-crimson); }
+    .tile-value.violet { color: var(--violet); text-shadow: 0 0 5px rgba(201,163,255,0.4); }
 
-    /* progress */
-    .bar-wrap { margin: 14px 0; }
-    .bar-head { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.8rem; color: var(--muted); }
-    .bar-head span:last-child { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+    /* progress bars */
+    .bar-wrap { margin: 12px 0; }
+    .bar-head {
+      display: flex; justify-content: space-between; margin-bottom: 5px;
+      font-size: 0.7rem; color: var(--muted); letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .bar-head span:last-child { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
     .bar {
-      height: 10px; background: rgba(255,255,255,0.06);
-      border-radius: 999px; overflow: hidden; position: relative;
+      height: 9px; background: rgba(255,182,72,0.06);
+      border: 1px solid var(--line); border-radius: 0; overflow: hidden; position: relative;
     }
     .bar-fill {
-      height: 100%; border-radius: 999px;
-      background: var(--fill, var(--pool-grad));
-      transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
-      position: relative;
+      height: 100%;
+      background: var(--fill, var(--grad-amber));
+      transition: width 0.7s cubic-bezier(0.4,0,0.2,1); position: relative;
     }
     .bar-fill::after {
       content: ""; position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
-      animation: shimmer 2.4s infinite;
+      background: linear-gradient(90deg, transparent, rgba(255,233,196,0.35), transparent);
+      animation: shimmer 2.6s infinite;
     }
     @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
-    /* donut */
+    /* donut gauge */
     .donut-row { display: flex; align-items: center; gap: 18px; }
-    .donut { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
-    .donut svg { transform: rotate(-90deg); }
+    .donut { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
+    .donut svg { transform: rotate(-90deg); filter: drop-shadow(0 0 5px rgba(255,182,72,0.25)); }
     .donut-center {
       position: absolute; inset: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center; text-align: center;
     }
-    .donut-pct { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-    .donut-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-    .legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-    .leg-item { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; }
-    .leg-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-    .leg-val { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .donut-pct { font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .donut-label { font-size: 0.56rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.16em; }
+    .legend { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .leg-item {
+      display: flex; align-items: center; gap: 9px; font-size: 0.76rem;
+      color: var(--text);
+    }
+    .leg-dot { width: 9px; height: 9px; border-radius: 0; flex-shrink: 0; box-shadow: 0 0 5px currentColor; }
+    .leg-val { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text); }
 
     /* sparkline */
-    .spark { height: 56px; margin: 8px 0 2px; position: relative; }
+    .spark { height: 54px; margin: 8px 0 2px; position: relative; border: 1px solid var(--line); background: rgba(255,182,72,0.025); }
     .spark svg { width: 100%; height: 100%; display: block; }
+    .spark-axis {
+      display: flex; justify-content: space-between; font-size: 0.56rem;
+      color: var(--dim); letter-spacing: 0.1em; margin-top: 2px;
+    }
+
+    /* ── Spinning platter (signature) ────────────────────────── */
+    .platter-card { display: flex; flex-direction: column; }
+    .platter-stage {
+      display: flex; align-items: center; gap: 18px; margin: 6px 0 14px;
+    }
+    .platter {
+      position: relative; width: 130px; height: 130px; flex-shrink: 0;
+      cursor: pointer;
+    }
+    .platter svg { display: block; }
+    .platter .spin {
+      transform-origin: 50% 50%;
+      animation: spin-disk 14s linear infinite;
+    }
+    .platter:hover .spin { animation-duration: 4s; }
+    .platter .head {
+      transform-origin: 6% 50%;
+      animation: head-seek 5s ease-in-out infinite;
+    }
+    @keyframes spin-disk { to { transform: rotate(360deg); } }
+    @keyframes head-seek {
+      0%,100% { transform: rotate(-8deg); }
+      30% { transform: rotate(6deg); }
+      60% { transform: rotate(-2deg); }
+    }
+    .platter-info { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .platter-info .pi-row {
+      display: flex; justify-content: space-between; font-size: 0.72rem;
+      color: var(--muted); letter-spacing: 0.06em;
+    }
+    .platter-info .pi-row span:last-child { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
 
     /* vdev list */
-    .vdevs { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
-    .vdevs-title { font-size: 0.68rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+    .vdevs { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+    .vdevs-title {
+      font-size: 0.58rem; color: var(--dim); text-transform: uppercase;
+      letter-spacing: 0.18em; margin-bottom: 8px;
+    }
     .vdev {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 12px; background: rgba(255,255,255,0.025);
-      border-radius: var(--radius-sm); margin-bottom: 6px;
-      font-size: 0.85rem; transition: background 0.2s;
+      padding: 6px 9px; background: rgba(255,182,72,0.025);
+      border-left: 2px solid var(--line); margin-bottom: 4px;
+      font-size: 0.76rem; transition: all 0.18s;
     }
-    .vdev:hover { background: rgba(255,255,255,0.06); }
-    .vdev-name { font-family: ui-monospace, 'SF Mono', Menlo, monospace; color: #cbd5e1; }
-    .vdev-info { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 0.78rem; }
+    .vdev:hover { background: rgba(255,182,72,0.07); border-left-color: var(--phosphor); }
+    .vdev-name { color: var(--phosphor-bright); font-size: 0.74rem; word-break: break-all; }
+    .vdev-info { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 0.7rem; }
 
     /* loading / error */
-    .state { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 1.05rem; }
+    .state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 0.92rem; letter-spacing: 0.08em; }
     .spinner {
-      width: 42px; height: 42px; border: 3px solid var(--border);
-      border-top-color: var(--cyan); border-radius: 50%;
-      margin: 0 auto 16px; animation: spin 1s linear infinite;
+      width: 38px; height: 38px; margin: 0 auto 14px; position: relative;
     }
+    .spinner::before, .spinner::after {
+      content: ""; position: absolute; inset: 0; border-radius: 50%;
+      border: 2px solid var(--line); border-top-color: var(--phosphor);
+      animation: spin 1s linear infinite;
+    }
+    .spinner::after { inset: 6px; border-top-color: var(--cyan); animation-direction: reverse; animation-duration: 1.4s; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .err { color: var(--rose); }
-    .err-detail { font-size: 0.82rem; opacity: 0.75; margin-top: 8px; }
-    .muted-note { font-size: 0.78rem; color: var(--dim); margin-top: 14px; text-align: center; }
+    .err { color: var(--crimson); text-shadow: var(--glow-crimson); }
+    .err-detail { font-size: 0.76rem; opacity: 0.75; margin-top: 7px; color: var(--muted); letter-spacing: 0.02em; }
+    .muted-note { font-size: 0.7rem; color: var(--dim); margin-top: 12px; text-align: center; letter-spacing: 0.04em; }
 
     /* FAB */
     .fab {
-      position: fixed; bottom: 24px; right: 24px;
-      background: linear-gradient(135deg, #22d3ee, #818cf8);
-      color: #0a0e1a; border: none; padding: 13px 22px; border-radius: 999px;
-      cursor: pointer; font-weight: 700; font-size: 0.88rem;
-      box-shadow: 0 8px 24px rgba(99,102,241,0.4);
-      transition: transform 0.2s, box-shadow 0.2s; z-index: 50;
-      display: flex; align-items: center; gap: 8px;
+      position: fixed; bottom: 22px; right: 22px;
+      background: var(--ink-2); color: var(--phosphor-bright);
+      border: 1px solid var(--phosphor); padding: 11px 18px; border-radius: var(--radius);
+      cursor: pointer; font-family: var(--mono); font-weight: 700; font-size: 0.78rem;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      box-shadow: var(--glow), 0 8px 20px rgba(0,0,0,0.5);
+      transition: all 0.18s; z-index: 50;
+      display: flex; align-items: center; gap: 8px; text-shadow: var(--glow);
     }
-    .fab:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(99,102,241,0.5); }
+    .fab:hover { background: var(--panel-hover); transform: translateY(-2px); }
     .fab:active { transform: translateY(0); }
     .fab .pulse {
-      width: 8px; height: 8px; border-radius: 50%; background: #0a0e1a;
-      animation: pulse 1.4s ease-in-out infinite;
+      width: 7px; height: 7px; border-radius: 50%; background: var(--phosphor);
+      box-shadow: var(--glow); animation: pulse 1.4s ease-in-out infinite;
     }
-    @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+    .fab.refreshing .pulse { animation: spin 0.9s linear infinite; border-radius: 0; }
 
-    /* ── fastfetch-style system summary ─────────────────────── */
-    .fastfetch {
-      display: flex; gap: 32px; align-items: center;
-      flex-wrap: wrap;
-    }
+    /* ── fastfetch-style system summary ──────────────────────── */
+    .fastfetch { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
     .fastfetch-logo {
-      flex-shrink: 0; width: 132px; height: 132px;
-      border-radius: 22px;
-      background: linear-gradient(135deg, #22d3ee 0%, #818cf8 50%, #a78bfa 100%);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 12px 36px -8px rgba(99,102,241,0.55), inset 0 0 0 1px rgba(255,255,255,0.12);
-      position: relative; overflow: hidden;
+      flex-shrink: 0; width: 120px; padding: 10px;
+      background: rgba(255,182,72,0.04); border: 1px solid var(--line);
+      border-radius: var(--radius); position: relative;
     }
-    .fastfetch-logo::after {
-      content: ""; position: absolute; inset: 0;
-      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.32), transparent 55%);
+    .fastfetch-logo pre {
+      font-family: var(--mono); font-size: 0.5rem; line-height: 1.05;
+      color: var(--phosphor); text-shadow: var(--glow); white-space: pre;
+      margin: 0;
     }
-    .fastfetch-logo svg { width: 78px; height: 78px; color: #0a0e1a; position: relative; z-index: 1; }
-    .fastfetch-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+    .fastfetch-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
     .ff-title {
-      font-size: 1.18rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px;
-      background: linear-gradient(100deg, #22d3ee, #818cf8, #a78bfa);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: 1.05rem; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 4px;
+      color: var(--phosphor-bright); text-shadow: var(--glow);
     }
-    .ff-title .ff-host { color: var(--muted); font-weight: 600; font-size: 0.9rem;
-      -webkit-text-fill-color: var(--muted); }
-    .ff-row {
-      display: flex; align-items: baseline; gap: 12px; font-size: 0.86rem;
-      line-height: 1.4;
-    }
+    .ff-title .ff-host { color: var(--muted); font-weight: 500; font-size: 0.82rem; text-shadow: none; }
+    .ff-row { display: flex; align-items: baseline; gap: 8px; font-size: 0.78rem; line-height: 1.4; }
     .ff-key {
-      color: var(--cyan); font-weight: 700; min-width: 92px; flex-shrink: 0;
-      font-size: 0.78rem; letter-spacing: 0.02em;
+      color: var(--phosphor); font-weight: 700; min-width: 96px; flex-shrink: 0;
+      font-size: 0.72rem; letter-spacing: 0.04em;
     }
+    .ff-sep { color: var(--dim); }
     .ff-val {
-      color: var(--text); font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-      word-break: break-word; font-size: 0.84rem;
+      color: var(--text); font-size: 0.76rem; word-break: break-word;
     }
-    .ff-sep { color: var(--border-strong); margin: 0 -2px; }
-    .ff-bar { flex: 1; max-width: 220px; margin-left: 4px; }
-    .ff-bar .bar { height: 7px; }
+    .ff-bar { flex: 1; max-width: 200px; margin-left: 4px; }
+    .ff-bar .bar { height: 6px; }
+
+    /* ── ARC live stream ─────────────────────────────────────── */
+    .stream-card { grid-column: 1 / -1; }
+    .stream {
+      display: flex; gap: 2px; height: 120px; align-items: flex-end;
+      background: rgba(255,182,72,0.025); border: 1px solid var(--line);
+      padding: 8px; overflow: hidden; border-radius: var(--radius-sm);
+    }
+    .stream-col {
+      flex: 1; height: 100%; display: flex; flex-direction: column;
+      justify-content: flex-end; gap: 2px; min-width: 4px;
+    }
+    .stream-cell {
+      width: 100%; border-radius: 1px;
+      animation: stream-rise 0.4s ease;
+    }
+    .stream-cell.hit { background: var(--mint); box-shadow: 0 0 4px var(--mint); }
+    .stream-cell.miss { background: var(--crimson); box-shadow: 0 0 4px var(--crimson); }
+    @keyframes stream-rise { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+    .stream-legend {
+      display: flex; gap: 18px; margin-top: 10px; font-size: 0.7rem;
+      color: var(--muted); letter-spacing: 0.08em;
+    }
+    .stream-legend .lg { display: flex; align-items: center; gap: 7px; }
+    .stream-legend .lg::before {
+      content: ""; width: 8px; height: 8px; border-radius: 1px;
+    }
+    .stream-legend .lg.hit::before { background: var(--mint); box-shadow: 0 0 5px var(--mint); }
+    .stream-legend .lg.miss::before { background: var(--crimson); box-shadow: 0 0 5px var(--crimson); }
 
     @media (max-width: 640px) {
       .grid { grid-template-columns: 1fr; }
       .tiles { grid-template-columns: 1fr; }
-      .donut-row { flex-direction: column; }
+      .donut-row, .platter-stage { flex-direction: column; align-items: stretch; }
+      .donut, .platter { align-self: center; }
       .fastfetch { flex-direction: column; align-items: stretch; }
-      .fastfetch-logo { margin: 0 auto 18px; }
+      .fastfetch-logo { margin: 0 auto; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
+      .platter .spin { animation: none !important; }
     }
   </style>
 </head>
@@ -328,26 +449,30 @@
   <div class="wrap">
     <header class="hero">
       <div class="hero-top">
-        <div>
-          <div class="brand">zDash</div>
-          <div class="brand-sub">ZFS Pool &amp; ARC Cache Monitor · System Overview</div>
+        <div class="brand-block">
+          <div class="brand">zDash<span class="cursor"></span></div>
+          <div class="brand-sub">phosphor storage console <span class="dot">·</span> zfs + arc monitor</div>
         </div>
-        <a class="hero-link" href="https://github.com/paepckehh/zdash" target="_blank" rel="noopener">github ↗</a>
+        <div class="hero-meta">
+          <span class="live">live</span>
+          <span id="hero-uptime">— uptime</span>
+          <a class="hero-link" href="https://github.com/paepckehh/zdash" target="_blank" rel="noopener">github ↗</a>
+        </div>
       </div>
       <div id="kpis" class="kpi-row"></div>
     </header>
 
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="system" role="tab">System</button>
-      <button class="tab" data-tab="pools" role="tab">Pools</button>
-      <button class="tab" data-tab="arc" role="tab">ARC Cache</button>
+      <button class="tab active" data-tab="system" role="tab">system</button>
+      <button class="tab" data-tab="pools" role="tab">pools</button>
+      <button class="tab" data-tab="arc" role="tab">arc cache</button>
     </nav>
 
     <section id="pane-system" class="pane active">
       <div id="sys-grid" class="grid"></div>
       <div id="sys-state" class="state">
         <div class="spinner"></div>
-        <div>Initializing system data…</div>
+        <div>booting system telemetry…</div>
       </div>
     </section>
 
@@ -355,7 +480,7 @@
       <div id="pools-grid" class="grid"></div>
       <div id="pools-state" class="state">
         <div class="spinner"></div>
-        <div>Initializing pool data…</div>
+        <div>spinning up pools…</div>
       </div>
     </section>
 
@@ -363,24 +488,46 @@
       <div id="arc-grid" class="grid"></div>
       <div id="arc-state" class="state">
         <div class="spinner"></div>
-        <div>Initializing ARC data…</div>
+        <div>reading arc kstat…</div>
       </div>
     </section>
   </div>
 
-  <button class="fab" onclick="refreshAll()" title="Refresh now">
-    <span class="pulse"></span> Refresh
+  <button class="fab" id="fab" onclick="refreshAll()" title="Refresh now">
+    <span class="pulse"></span> refresh
   </button>
 
   <script>
     const REFRESH_MS = 5000;
     let timer = null;
     let activeTab = 'system';
-    // history for sparklines
+    const caps = { zfs: true, arc: true };
     const hitHistory = [];
     const missHistory = [];
     const sizeHistory = [];
     const HIST_LEN = 60;
+    // Live ARC traffic stream: array of buckets, each {h, m} deltas.
+    let prevHits = null, prevMisses = null;
+    const streamBuckets = [];
+    const STREAM_LEN = 48;
+
+    /* ── capability-driven tab suppression ────────────────────── */
+    function applyCaps(c) {
+      caps.zfs = !!(c && c.zfs_available);
+      caps.arc = !!(c && c.arc_available);
+      const poolTab = document.querySelector('.tab[data-tab="pools"]');
+      const arcTab = document.querySelector('.tab[data-tab="arc"]');
+      const poolPane = document.getElementById('pane-pools');
+      const arcPane = document.getElementById('pane-arc');
+      if (poolTab) poolTab.hidden = !caps.zfs;
+      if (arcTab) arcTab.hidden = !caps.arc;
+      if (poolPane) poolPane.hidden = !caps.zfs;
+      if (arcPane) arcPane.hidden = !caps.arc;
+      if ((!caps.zfs && activeTab === 'pools') ||
+          (!caps.arc && activeTab === 'arc')) {
+        document.querySelector('.tab[data-tab="system"]').click();
+      }
+    }
 
     /* ── helpers ─────────────────────────────────────────────── */
     function healthBadge(state) {
@@ -408,29 +555,34 @@
       return (n/1e12).toFixed(2) + 'T';
     }
 
-    function pct(n, d) {
-      if (!d) return 0;
-      return Math.min((n / d) * 100, 100);
+    function pct(n, d) { return d ? Math.min((n / d) * 100, 100) : 0; }
+
+    function escapeHTML(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     }
 
-    /* donut chart generator: returns SVG markup for a conic-style donut */
-    function donutSVG(segments, size = 120, stroke = 16) {
+    /* donut: returns SVG markup for a CRT-glow donut */
+    function donutSVG(segments, size = 132, stroke = 14) {
       const r = (size - stroke) / 2;
       const c = 2 * Math.PI * r;
       const cx = size / 2;
       let offset = 0;
       let paths = '';
       for (const seg of segments) {
+        if (seg.value <= 0) continue;
         const len = (seg.value / 100) * c;
         paths += `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none"
           stroke="${seg.color}" stroke-width="${stroke}"
-          stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}"/>`;
+          stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}"
+          stroke-linecap="butt"/>`;
         offset += len;
       }
       return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
     }
 
-    function sparkline(data, color, height = 56) {
+    function sparkline(data, color, height = 54) {
       if (!data.length) return '<svg viewBox="0 0 100 ' + height + '"></svg>';
       const max = Math.max(...data, 1);
       const min = Math.min(...data, 0);
@@ -439,7 +591,7 @@
       const step = data.length > 1 ? w / (data.length - 1) : w;
       const pts = data.map((v, i) => {
         const x = i * step;
-        const y = height - ((v - min) / range) * (height - 6) - 3;
+        const y = height - ((v - min) / range) * (height - 8) - 4;
         return `${x.toFixed(2)},${y.toFixed(2)}`;
       }).join(' ');
       const areaPts = `0,${height} ${pts} ${w},${height}`;
@@ -448,18 +600,74 @@
         <svg viewBox="0 0 100 ${height}" preserveAspectRatio="none">
           <defs>
             <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="${color}" stop-opacity="0.4"/>
+              <stop offset="0%" stop-color="${color}" stop-opacity="0.45"/>
               <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
             </linearGradient>
           </defs>
           <polygon points="${areaPts}" fill="url(#${gid})"/>
-          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>`;
+    }
+
+    /* ── signature: spinning disk platter ────────────────────── */
+    function platterSVG(capPct, healthState) {
+      const size = 130;
+      const cx = size / 2;
+      const stroke = 8;
+      const r = (size - stroke) / 2 - 2;
+      const c = 2 * Math.PI * r;
+      const fillLen = (Math.min(capPct, 100) / 100) * c;
+      const capColor = capPct > 90 ? '#ff5d5d' : capPct > 75 ? '#ffc24b' : '#ffb648';
+      // concentric tracks
+      let tracks = '';
+      for (let i = 1; i <= 4; i++) {
+        const tr = r - (i * 8);
+        if (tr < 8) break;
+        tracks += `<circle cx="${cx}" cy="${cx}" r="${tr}" fill="none" stroke="rgba(255,182,72,0.1)" stroke-width="0.6"/>`;
+      }
+      // sector ticks
+      let ticks = '';
+      for (let a = 0; a < 360; a += 30) {
+        const rad = (a - 90) * Math.PI / 180;
+        const x1 = cx + Math.cos(rad) * (r - 2);
+        const y1 = cx + Math.sin(rad) * (r - 2);
+        const x2 = cx + Math.cos(rad) * (r - 6);
+        const y2 = cx + Math.sin(rad) * (r - 6);
+        ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(255,182,72,0.18)" stroke-width="0.7"/>`;
+      }
+      return `
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <defs>
+            <radialGradient id="pl-grad-${capPct|0}" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(255,182,72,0.05)"/>
+              <stop offset="70%" stop-color="rgba(255,182,72,0.02)"/>
+              <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+            </radialGradient>
+          </defs>
+          <circle cx="${cx}" cy="${cx}" r="${r + 2}" fill="url(#pl-grad-${capPct|0})" stroke="rgba(255,182,72,0.28)" stroke-width="1"/>
+          <g class="spin">
+            ${tracks}
+            ${ticks}
+            <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="rgba(255,182,72,0.18)" stroke-width="0.6" stroke-dasharray="2 4"/>
+            <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${capColor}" stroke-width="${stroke}"
+              stroke-dasharray="${fillLen} ${c - fillLen}" stroke-dashoffset="0"
+              style="filter: drop-shadow(0 0 5px ${capColor});"/>
+            <circle cx="${cx}" cy="${cx}" r="${r - 14}" fill="none" stroke="${capColor}" stroke-width="2"
+              stroke-dasharray="${fillLen * 0.6} ${c * 0.6}" stroke-dashoffset="0" opacity="0.5"/>
+          </g>
+          <circle cx="${cx}" cy="${cx}" r="6" fill="${capColor}" style="filter: drop-shadow(0 0 4px ${capColor});"/>
+          <circle cx="${cx}" cy="${cx}" r="2" fill="#0b0907"/>
+          <g class="head">
+            <line x1="${cx - size * 0.42}" y1="${cx}" x2="${cx - 4}" y2="${cx}" stroke="${capColor}" stroke-width="2" opacity="0.7"/>
+            <rect x="${cx - 8}" y="${cx - 3}" width="6" height="6" fill="${capColor}" opacity="0.85" style="filter: drop-shadow(0 0 3px ${capColor});"/>
+          </g>
         </svg>`;
     }
 
     /* ── tab switching ───────────────────────────────────────── */
     document.querySelectorAll('.tab').forEach(btn => {
       btn.addEventListener('click', () => {
+        if (btn.hidden) return;
         document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
@@ -471,31 +679,31 @@
     /* ── KPI summary strip ───────────────────────────────────── */
     function renderKPIs(pools, arc) {
       const el = document.getElementById('kpis');
-      let poolCount = 0, onlineCount = 0, totalCap = 0, countCap = 0;
-      if (pools && pools.pools) {
-        poolCount = Object.keys(pools.pools).length;
-        for (const p of Object.values(pools.pools)) {
-          if ((p.state || '').toUpperCase() === 'ONLINE') onlineCount++;
-          const cap = parseFloat(p.properties?.capacity?.value) || 0;
-          totalCap += cap; countCap++;
-        }
-      }
-      const avgCap = countCap ? (totalCap / countCap) : 0;
-
       const kpis = [];
-      kpis.push({ accent: 'pool', label: 'Pools', value: poolCount || '—', sub: `${onlineCount} online` });
-      kpis.push({ accent: 'pool', label: 'Avg Capacity', value: poolCount ? avgCap.toFixed(1) + '%' : '—', sub: 'across all pools' });
 
-      if (arc) {
+      if (caps.zfs) {
+        let poolCount = 0, onlineCount = 0, totalCap = 0, countCap = 0;
+        if (pools && pools.pools) {
+          poolCount = Object.keys(pools.pools).length;
+          for (const p of Object.values(pools.pools)) {
+            if ((p.state || '').toUpperCase() === 'ONLINE') onlineCount++;
+            const cap = parseFloat(p.properties?.capacity?.value) || 0;
+            totalCap += cap; countCap++;
+          }
+        }
+        const avgCap = countCap ? (totalCap / countCap) : 0;
+        kpis.push({ accent: 'pool', label: 'pools', value: poolCount || '—', sub: `${onlineCount} online`, bar: 100 });
+        kpis.push({ accent: 'pool', label: 'avg capacity', value: poolCount ? avgCap.toFixed(1) + '%' : '—', sub: 'across all pools', bar: avgCap });
+      }
+
+      if (caps.arc && arc) {
         const total = arc.hits + arc.misses;
         const hitRatio = total ? (arc.hits / total * 100) : 0;
-        kpis.push({ accent: 'hit', label: 'ARC Hit Ratio', value: hitRatio.toFixed(2) + '%', sub: fmtNum(arc.hits) + ' hits' });
-        kpis.push({ accent: 'miss', label: 'ARC Misses', value: fmtNum(arc.misses), sub: 'since load' });
-        kpis.push({ accent: 'size', label: 'ARC Size', value: fmtBytes(arc.size), sub: 'max ' + fmtBytes(arc.c_max) });
+        kpis.push({ accent: 'hit', label: 'arc hit ratio', value: hitRatio.toFixed(2) + '%', sub: fmtNum(arc.hits) + ' hits', bar: hitRatio });
+        kpis.push({ accent: 'miss', label: 'arc misses', value: fmtNum(arc.misses), sub: 'since load', bar: Math.min(arc.misses / (total || 1) * 100, 100) });
+        kpis.push({ accent: 'size', label: 'arc size', value: fmtBytes(arc.size), sub: 'max ' + fmtBytes(arc.c_max), bar: arc.c_max ? (arc.size / arc.c_max * 100) : 0 });
         const used = arc.c_max ? (arc.size / arc.c_max * 100) : 0;
-        kpis.push({ accent: 'arc', label: 'ARC Utilization', value: used.toFixed(1) + '%', sub: fmtBytes(arc.c) + ' target' });
-      } else {
-        kpis.push({ accent: 'arc', label: 'ARC Cache', value: '—', sub: 'unavailable' });
+        kpis.push({ accent: 'arc', label: 'arc utilization', value: used.toFixed(1) + '%', sub: fmtBytes(arc.c) + ' target', bar: used });
       }
 
       el.innerHTML = kpis.map(k => `
@@ -503,35 +711,28 @@
           <div class="kpi-label">${k.label}</div>
           <div class="kpi-value">${k.value}</div>
           <div class="kpi-sub">${k.sub}</div>
+          <div class="kpi-bar" style="width:${Math.min(k.bar, 100).toFixed(1)}%"></div>
         </div>`).join('');
     }
 
-    /* ── System overview (fastfetch-style) ───────────────────── */
-    function osLogoSVG(osId) {
-      // A neutral, branded server glyph; a small letter badge conveys the
-      // detected distro family without shipping per-distro ASCII art.
+    /* ── System overview (fastfetch-style, CRT) ──────────────── */
+    function osAsciiLogo(osId) {
+      // Compact ASCII-art storage stack; the distro letter sits in the chassis.
       const letter = (osId || 'z').charAt(0).toUpperCase();
-      return `
-        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="14" y="22" width="72" height="18" rx="4" fill="currentColor" opacity="0.9"/>
-          <rect x="14" y="46" width="72" height="18" rx="4" fill="currentColor" opacity="0.7"/>
-          <rect x="14" y="70" width="72" height="14" rx="4" fill="currentColor" opacity="0.5"/>
-          <circle cx="24" cy="31" r="3" fill="#0a0e1a"/>
-          <circle cx="24" cy="55" r="3" fill="#0a0e1a"/>
-          <circle cx="24" cy="77" r="3" fill="#0a0e1a"/>
-          <text x="62" y="86" font-family="Inter, sans-serif" font-size="34"
-                font-weight="800" fill="currentColor" text-anchor="middle">${letter}</text>
-        </svg>`;
+      return [
+        '┌──────────┐',
+        '│ ▓▓▓▓▓▓▓▓ │  ── platter',
+        '│ ▓▓▓▓▓▓▓▓ │  ── platter',
+        '│ ▓▓▓▓▓▓▓▓ │  ── platter',
+        '│   ['+letter+']    │  ── host',
+        '└──┬───┬──┘',
+        '   │ z │       spindle',
+        '   └───┘',
+      ].join('\n');
     }
 
     function ffRow(key, valHtml) {
       return `<div class="ff-row"><span class="ff-key">${key}</span><span class="ff-sep">:</span><span class="ff-val">${valHtml}</span></div>`;
-    }
-
-    function escapeHTML(s) {
-      return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
     }
 
     function renderSys(s) {
@@ -544,39 +745,60 @@
       const kernelFull = [s.kernel, s.kernel_release].filter(Boolean).join(' ');
       const memUsedPct = s.memory_total_bytes
         ? (s.memory_used_bytes / s.memory_total_bytes * 100) : 0;
-      const memColor = memUsedPct > 90 ? '#fb7185'
-        : memUsedPct > 75 ? '#fbbf24' : '#818cf8';
+      const memColor = memUsedPct > 90 ? '#ff5d5d'
+        : memUsedPct > 75 ? '#ffc24b' : '#ffb648';
       const loadStr = (s.load1 != null && s.load1 !== 0)
         ? `${s.load1.toFixed(2)} ${s.load5.toFixed(2)} ${s.load15.toFixed(2)}`
         : '—';
       const swapStr = s.swap_total_bytes
         ? `${fmtBytes(s.swap_total_bytes - s.swap_free_bytes)} / ${fmtBytes(s.swap_total_bytes)}`
         : 'disabled';
+      const hostStr = [s.host_vendor, s.host_product].filter(Boolean).join(' ') || '—';
+      const freqStr = s.cpu_freq_mhz
+        ? `${s.cpu_freq_mhz.toFixed(0)} MHz` +
+          (s.cpu_max_mhz ? ` / ${s.cpu_max_mhz.toFixed(0)} MHz` : '')
+        : '—';
+      const coresStr = s.cpu_physical_cores && s.cpu_physical_cores !== s.cpu_cores
+        ? `${s.cpu_physical_cores}P / ${s.cpu_cores || 0}L`
+        : `${s.cpu_cores || 0}`;
+      const netStr = s.net_iface
+        ? `${escapeHTML(s.net_iface)}${s.net_ipv4 ? ` · ${escapeHTML(s.net_ipv4)}` : ''}`
+        : '—';
+      const osFull = s.os_version
+        ? `${escapeHTML(osLabel)} ${escapeHTML(s.os_version)}` +
+          (s.os_codename ? ` (${escapeHTML(s.os_codename)})` : '')
+        : escapeHTML(osLabel);
 
       const rows = [
-        ffRow('OS', escapeHTML(osLabel + (s.os_version ? ' ' + s.os_version : ''))),
+        ffRow('OS', osFull),
         ffRow('Host', escapeHTML(s.hostname || '—')),
+        ffRow('Hardware', escapeHTML(hostStr)),
         ffRow('Kernel', escapeHTML(kernelFull || '—')),
         ffRow('Kernel ver', escapeHTML(s.kernel_version || '—')),
         ffRow('Uptime', escapeHTML(s.uptime || '—')),
         ffRow('Packages', escapeHTML(s.processes ? s.processes.toLocaleString() : '—')),
         ffRow('Shell', escapeHTML(s.shell || '—')),
         ffRow('Terminal', escapeHTML(s.terminal || '—')),
-        ffRow('CPU', `${escapeHTML(s.cpu_model || '—')} <span class="ff-sep">·</span> ${s.cpu_cores || 0} cores`),
+        ffRow('Locale', escapeHTML(s.locale || '—')),
+        ffRow('CPU', `${escapeHTML(s.cpu_model || '—')} <span class="ff-sep">·</span> ${coresStr} cores`),
+        ffRow('Freq', escapeHTML(freqStr)),
         ffRow('Memory',
           `${fmtBytes(s.memory_used_bytes)} / ${fmtBytes(s.memory_total_bytes)}` +
           (s.memory_total_bytes
-            ? ` <span class="ff-bar bar"><span class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#a78bfa)"></span></span>`
+            ? ` <span class="ff-bar bar"><span class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#ffd989)"></span></span>`
             : '')),
         ffRow('Swap', escapeHTML(swapStr)),
         ffRow('Load', escapeHTML(loadStr)),
+        ffRow('Network', netStr),
         ffRow('Machine', escapeHTML(s.machine || '—')),
       ];
+
+      document.getElementById('hero-uptime').textContent = (s.uptime || '—') + ' uptime';
 
       grid.innerHTML = `
         <div class="card" style="grid-column:1 / -1">
           <div class="fastfetch">
-            <div class="fastfetch-logo">${osLogoSVG(s.os_id)}</div>
+            <div class="fastfetch-logo"><pre>${escapeHTML(osAsciiLogo(s.os_id))}</pre></div>
             <div class="fastfetch-rows">
               <div class="ff-title">${escapeHTML(osLabel)} <span class="ff-host">@ ${escapeHTML(s.hostname || 'host')}</span></div>
               ${rows.join('')}
@@ -589,35 +811,40 @@
           <div class="tiles">
             <div class="tile"><div class="tile-label">Up</div><div class="tile-value cyan">${escapeHTML(s.uptime || '—')}</div></div>
             <div class="tile"><div class="tile-label">Since</div><div class="tile-value violet">${s.boot_time ? new Date(s.boot_time * 1000).toLocaleDateString() : '—'}</div></div>
-            <div class="tile"><div class="tile-label">Procs</div><div class="tile-value emerald">${s.processes ? s.processes.toLocaleString() : '—'}</div></div>
+            <div class="tile"><div class="tile-label">Procs</div><div class="tile-value mint">${s.processes ? s.processes.toLocaleString() : '—'}</div></div>
           </div>
+          <div class="muted-note">net ${netStr}</div>
         </div>
         <div class="card">
           <div class="card-head"><span class="card-title">Memory</span>
             <span class="badge ${memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online'}">${memUsedPct.toFixed(0)}%</span>
           </div>
           <div class="tiles">
-            <div class="tile"><div class="tile-label">Used</div><div class="tile-value violet">${fmtBytes(s.memory_used_bytes)}</div></div>
-            <div class="tile"><div class="tile-label">Available</div><div class="tile-value emerald">${fmtBytes(s.memory_available_bytes)}</div></div>
+            <div class="tile"><div class="tile-label">Used</div><div class="tile-value amber">${fmtBytes(s.memory_used_bytes)}</div></div>
+            <div class="tile"><div class="tile-label">Available</div><div class="tile-value mint">${fmtBytes(s.memory_available_bytes)}</div></div>
             <div class="tile"><div class="tile-label">Total</div><div class="tile-value cyan">${fmtBytes(s.memory_total_bytes)}</div></div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>Used</span><span>${memUsedPct.toFixed(1)}%</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#a78bfa)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#ffd989)"></div></div>
           </div>
           <div class="muted-note">cached ${fmtBytes(s.memory_cached_bytes)} · swap ${escapeHTML(swapStr)}</div>
         </div>
         <div class="card">
           <div class="card-head"><span class="card-title">CPU</span>
-            <span class="badge b-online">${s.cpu_cores || 0} cores</span></div>
+            <span class="badge b-online">${coresStr} cores</span></div>
           <div class="tiles">
-            <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan" style="font-size:0.88rem">${escapeHTML(s.cpu_model || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan" style="font-size:0.78rem">${escapeHTML(s.cpu_model || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Vendor</div><div class="tile-value violet">${escapeHTML(s.cpu_vendor || '—')}</div></div>
             <div class="tile"><div class="tile-label">Arch</div><div class="tile-value violet">${escapeHTML(s.machine || '—')}</div></div>
-            <div class="tile"><div class="tile-label">Load 1m</div><div class="tile-value ${s.load1 > s.cpu_cores ? 'amber' : 'emerald'}">${s.load1 != null ? s.load1.toFixed(2) : '—'}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Frequency (cur / max)</span><span>${escapeHTML(freqStr)}</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${s.cpu_max_mhz ? Math.min(s.cpu_freq_mhz / s.cpu_max_mhz * 100, 100) : 0}%;background:linear-gradient(90deg,#5fd6e8,#ffb648)"></div></div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>Load avg (1 / 5 / 15 min)</span><span>${escapeHTML(loadStr)}</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${s.cpu_cores ? Math.min(s.load1 / s.cpu_cores * 100, 100) : 0}%;background:linear-gradient(90deg,#22d3ee,#818cf8)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${s.cpu_cores ? Math.min(s.load1 / s.cpu_cores * 100, 100) : 0}%;background:linear-gradient(90deg,#5ee3a0,#5fd6e8)"></div></div>
           </div>
           <div class="muted-note">${escapeHTML(s.kernel || '')} ${escapeHTML(s.kernel_release || '')}</div>
         </div>`;
@@ -629,32 +856,33 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
+        applyCaps(data);
         renderSys(data);
         return data;
       } catch (err) {
         const el = document.getElementById('sys-state');
         document.getElementById('sys-grid').innerHTML = '';
-        el.innerHTML = `<div class="err">⚠️ Failed to load system data<div class="err-detail">${err.message}</div></div>`;
+        el.innerHTML = `<div class="err">⚠ failed to load system data<div class="err-detail">${escapeHTML(err.message)}</div></div>`;
         return null;
       }
     }
 
-    /* ── Pool rendering ──────────────────────────────────────── */
+    /* ── Pool rendering with spinning platters ───────────────── */
     function renderVdevs(vdevs, depth = 0) {
       if (!vdevs) return '';
       let html = '';
       for (const [name, v] of Object.entries(vdevs)) {
-        const indent = depth * 18;
+        const indent = depth * 16;
         const hc = healthBadge(v.state);
         const size = v.properties?.size?.value || '—';
         const path = v.path || 'N/A';
         html += `
           <div class="vdev" style="margin-left:${indent}px">
-            <span class="vdev-name">${name}</span>
+            <span class="vdev-name">${escapeHTML(name)}</span>
             <div class="vdev-info">
-              <span class="badge ${hc}">${v.state}</span>
-              <span>${size}</span>
-              <span style="font-size:0.72rem;opacity:0.65">${path}</span>
+              <span class="badge ${hc}">${escapeHTML(v.state)}</span>
+              <span>${escapeHTML(size)}</span>
+              <span style="font-size:0.66rem;opacity:0.65">${escapeHTML(path)}</span>
             </div>
           </div>`;
         if (v.vdevs) html += renderVdevs(v.vdevs, depth + 1);
@@ -667,35 +895,41 @@
       const frag = pool.properties.fragmentation.value || '—';
       const dedup = pool.properties.dedupratio.value || '—';
       const hc = healthBadge(pool.state);
-      const capColor = cap > 90 ? 'rose' : cap > 75 ? 'amber' : 'cyan';
+      const capColor = cap > 90 ? '#ff5d5d' : cap > 75 ? '#ffc24b' : '#ffb648';
       const fillGrad = cap > 90
-        ? 'linear-gradient(90deg,#fb7185,#f472b6)'
+        ? 'linear-gradient(90deg,#ff5d5d,#c9a3ff)'
         : cap > 75
-          ? 'linear-gradient(90deg,#fbbf24,#fb7185)'
-          : 'linear-gradient(90deg,#22d3ee,#818cf8)';
+          ? 'linear-gradient(90deg,#ffc24b,#ff5d5d)'
+          : 'linear-gradient(90deg,#ffb648,#5fd6e8)';
 
       return `
-        <div class="card">
+        <div class="card platter-card" data-accent="pool">
           <div class="card-head">
-            <span class="card-title">${name}</span>
-            <span class="badge ${hc}">${pool.state}</span>
+            <span class="card-title">${escapeHTML(name)}</span>
+            <span class="badge ${hc}">${escapeHTML(pool.state)}</span>
           </div>
-          <div class="tiles">
-            <div class="tile"><div class="tile-label">Total</div><div class="tile-value cyan">${pool.properties.size.value}</div></div>
-            <div class="tile"><div class="tile-label">Allocated</div><div class="tile-value violet">${pool.properties.allocated.value}</div></div>
-            <div class="tile"><div class="tile-label">Free</div><div class="tile-value emerald">${pool.properties.free.value}</div></div>
+          <div class="platter-stage">
+            <div class="platter" title="capacity ${cap.toFixed(1)}%">
+              ${platterSVG(cap, pool.state)}
+            </div>
+            <div class="platter-info">
+              <div class="pi-row"><span>total</span><span>${escapeHTML(pool.properties.size.value)}</span></div>
+              <div class="pi-row"><span>allocated</span><span>${escapeHTML(pool.properties.allocated.value)}</span></div>
+              <div class="pi-row"><span>free</span><span>${escapeHTML(pool.properties.free.value)}</span></div>
+              <div class="pi-row"><span>capacity</span><span style="color:${capColor}">${cap.toFixed(1)}%</span></div>
+            </div>
           </div>
           <div class="bar-wrap">
-            <div class="bar-head"><span>Capacity</span><span>${cap.toFixed(2)}%</span></div>
+            <div class="bar-head"><span>capacity</span><span>${cap.toFixed(2)}%</span></div>
             <div class="bar"><div class="bar-fill" style="width:${Math.min(cap,100)}%;background:${fillGrad}"></div></div>
           </div>
           <div class="tiles">
-            <div class="tile"><div class="tile-label">Fragmentation</div><div class="tile-value ${parseFloat(frag) > 50 ? 'amber' : 'emerald'}">${frag}</div></div>
-            <div class="tile"><div class="tile-label">Dedup</div><div class="tile-value cyan">${dedup}</div></div>
-            <div class="tile"><div class="tile-label">Health</div><div class="tile-value ${pool.state === 'ONLINE' ? 'emerald' : 'amber'}">${pool.properties.health.value}</div></div>
+            <div class="tile"><div class="tile-label">Fragmentation</div><div class="tile-value ${parseFloat(frag) > 50 ? 'amber' : 'mint'}">${escapeHTML(frag)}</div></div>
+            <div class="tile"><div class="tile-label">Dedup</div><div class="tile-value cyan">${escapeHTML(dedup)}</div></div>
+            <div class="tile"><div class="tile-label">Health</div><div class="tile-value ${(pool.state || '').toUpperCase() === 'ONLINE' ? 'mint' : 'amber'}">${escapeHTML(pool.properties.health.value)}</div></div>
           </div>
           <div class="vdevs">
-            <div class="vdevs-title">Virtual Devices</div>
+            <div class="vdevs-title">virtual devices</div>
             ${renderVdevs(pool.vdevs)}
           </div>
         </div>`;
@@ -711,7 +945,7 @@
       } catch (err) {
         const el = document.getElementById('pools-state');
         document.getElementById('pools-grid').innerHTML = '';
-        el.innerHTML = `<div class="err">⚠️ Failed to load pool data<div class="err-detail">${err.message}</div></div>`;
+        el.innerHTML = `<div class="err">⚠ failed to load pool data<div class="err-detail">${escapeHTML(err.message)}</div></div>`;
         return null;
       }
     }
@@ -721,7 +955,7 @@
       const state = document.getElementById('pools-state');
       grid.innerHTML = '';
       if (!data || !data.pools || Object.keys(data.pools).length === 0) {
-        state.innerHTML = 'No pools found or command returned empty data.';
+        state.innerHTML = 'no pools found or command returned empty data.';
         return;
       }
       state.innerHTML = '';
@@ -730,7 +964,36 @@
       }
     }
 
-    /* ── ARC rendering ────────────────────────────────────────── */
+    /* ── ARC rendering + live stream ─────────────────────────── */
+    function pushStreamBucket(arc) {
+      const dh = prevHits != null ? Math.max(0, arc.hits - prevHits) : 0;
+      const dm = prevMisses != null ? Math.max(0, arc.misses - prevMisses) : 0;
+      prevHits = arc.hits;
+      prevMisses = arc.misses;
+      streamBuckets.push({ h: dh, m: dm });
+      if (streamBuckets.length > STREAM_LEN) streamBuckets.shift();
+    }
+
+    function renderStream() {
+      const el = document.getElementById('arc-stream');
+      if (!el) return;
+      const max = Math.max(1, ...streamBuckets.map(b => Math.max(b.h, b.m)));
+      let cols = '';
+      for (const b of streamBuckets) {
+        const hH = (b.h / max) * 100;
+        const mH = (b.m / max) * 100;
+        cols += `<div class="stream-col">
+          <div class="stream-cell miss" style="height:${mH}%"></div>
+          <div class="stream-cell hit" style="height:${hH}%"></div>
+        </div>`;
+      }
+      // fill empty columns so the stream looks continuous on first load
+      for (let i = streamBuckets.length; i < STREAM_LEN; i++) {
+        cols += `<div class="stream-col"></div>`;
+      }
+      el.querySelector('.stream').innerHTML = cols;
+    }
+
     function renderARC(arc) {
       const grid = document.getElementById('arc-grid');
       const state = document.getElementById('arc-state');
@@ -740,24 +1003,20 @@
       const hitPct = total ? (arc.hits / total * 100) : 0;
       const missPct = total ? (arc.misses / total * 100) : 0;
 
-      // donut: MRU vs MFU hits proportion
       const mruHits = arc.mru_hits || 0;
       const mfuHits = arc.mfu_hits || 0;
       const totalHit = mruHits + mfuHits || 1;
       const mruPct = (mruHits / totalHit) * 100;
       const mfuPct = (mfuHits / totalHit) * 100;
 
-      // ARC size utilization donut
       const sizePct = arc.c_max ? (arc.size / arc.c_max * 100) : 0;
       const targetPct = arc.c_max ? (arc.c / arc.c_max * 100) : 0;
 
-      // demand vs prefetch
       const demHits = arc.demand_data_hits + arc.demand_metadata_hits;
       const preHits = arc.prefetch_data_hits + arc.prefetch_metadata_hits;
       const demMisses = arc.demand_data_misses + arc.demand_metadata_misses;
       const preMisses = arc.prefetch_data_misses + arc.prefetch_metadata_misses;
 
-      // update history for sparklines
       hitHistory.push(hitPct);
       missHistory.push(arc.misses);
       sizeHistory.push(arc.size);
@@ -765,7 +1024,22 @@
       if (missHistory.length > HIST_LEN) missHistory.shift();
       if (sizeHistory.length > HIST_LEN) sizeHistory.shift();
 
+      pushStreamBucket(arc);
+
       grid.innerHTML = `
+        <!-- live hit/miss traffic stream -->
+        <div class="card stream-card" data-accent="arc" id="arc-stream">
+          <div class="card-head"><span class="card-title">live traffic</span>
+            <span class="badge ${hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline'}">${hitPct.toFixed(2)}% hit</span>
+          </div>
+          <div class="stream"></div>
+          <div class="stream-legend">
+            <span class="lg hit">hits / interval</span>
+            <span class="lg miss">misses / interval</span>
+            <span style="margin-left:auto;color:var(--dim)">last ${streamBuckets.length} samples</span>
+          </div>
+        </div>
+
         <!-- Hit ratio donut card -->
         <div class="card" data-accent="arc">
           <div class="card-head"><span class="card-title">Cache Hit Ratio</span>
@@ -774,22 +1048,22 @@
           <div class="donut-row">
             <div class="donut">
               ${donutSVG([
-                { value: hitPct, color: '#34d399' },
-                { value: missPct, color: '#fb7185' }
+                { value: hitPct, color: '#5ee3a0' },
+                { value: missPct, color: '#ff5d5d' }
               ])}
               <div class="donut-center">
-                <div class="donut-pct" style="color:var(--emerald)">${hitPct.toFixed(1)}%</div>
+                <div class="donut-pct" style="color:var(--mint);text-shadow:var(--glow-mint)">${hitPct.toFixed(1)}%</div>
                 <div class="donut-label">hits</div>
               </div>
             </div>
             <div class="legend">
-              <div class="leg-item"><span class="leg-dot" style="background:#34d399"></span>Hits<span class="leg-val">${fmtNum(arc.hits)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#fb7185"></span>Misses<span class="leg-val">${fmtNum(arc.misses)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#818cf8"></span>I/O hits<span class="leg-val">${fmtNum(arc.iohits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5ee3a0;color:#5ee3a0"></span>Hits<span class="leg-val">${fmtNum(arc.hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ff5d5d;color:#ff5d5d"></span>Misses<span class="leg-val">${fmtNum(arc.misses)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>I/O hits<span class="leg-val">${fmtNum(arc.iohits)}</span></div>
             </div>
           </div>
-          <div class="spark">${sparkline(hitHistory, '#34d399')}</div>
-          <div class="muted-note">hit ratio over the last ${hitHistory.length} samples</div>
+          <div class="spark">${sparkline(hitHistory, '#5ee3a0')}</div>
+          <div class="spark-axis"><span>−${HIST_LEN}</span><span>now</span></div>
         </div>
 
         <!-- ARC size card -->
@@ -800,25 +1074,25 @@
           <div class="donut-row">
             <div class="donut">
               ${donutSVG([
-                { value: sizePct, color: '#818cf8' },
-                { value: Math.max(targetPct - sizePct, 0), color: '#22d3ee' },
-                { value: Math.max(100 - targetPct, 0), color: '#1e293b' }
+                { value: sizePct, color: '#ffb648' },
+                { value: Math.max(targetPct - sizePct, 0), color: '#5fd6e8' },
+                { value: Math.max(100 - targetPct, 0), color: 'rgba(255,182,72,0.15)' }
               ])}
               <div class="donut-center">
-                <div class="donut-pct" style="color:var(--violet)">${fmtBytes(arc.size)}</div>
+                <div class="donut-pct" style="color:var(--phosphor-bright);text-shadow:var(--glow)">${fmtBytes(arc.size)}</div>
                 <div class="donut-label">used</div>
               </div>
             </div>
             <div class="legend">
-              <div class="leg-item"><span class="leg-dot" style="background:#818cf8"></span>Current<span class="leg-val">${fmtBytes(arc.size)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#22d3ee"></span>Target<span class="leg-val">${fmtBytes(arc.c)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#34d399"></span>Min<span class="leg-val">${fmtBytes(arc.c_min)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#fb7185"></span>Max<span class="leg-val">${fmtBytes(arc.c_max)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ffb648;color:#ffb648"></span>Current<span class="leg-val">${fmtBytes(arc.size)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>Target<span class="leg-val">${fmtBytes(arc.c)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5ee3a0;color:#5ee3a0"></span>Min<span class="leg-val">${fmtBytes(arc.c_min)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ff5d5d;color:#ff5d5d"></span>Max<span class="leg-val">${fmtBytes(arc.c_max)}</span></div>
             </div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>Size vs Max</span><span>${sizePct.toFixed(1)}%</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${sizePct}%;background:linear-gradient(90deg,#818cf8,#a78bfa)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${sizePct}%;background:linear-gradient(90deg,#ffb648,#ffd989)"></div></div>
           </div>
         </div>
 
@@ -828,8 +1102,8 @@
           <div class="donut-row">
             <div class="donut">
               ${donutSVG([
-                { value: mruPct, color: '#fbbf24' },
-                { value: mfuPct, color: '#22d3ee' }
+                { value: mruPct, color: '#ffc24b' },
+                { value: mfuPct, color: '#5fd6e8' }
               ])}
               <div class="donut-center">
                 <div class="donut-pct" style="color:var(--cyan)">${mfuPct.toFixed(0)}%</div>
@@ -837,10 +1111,10 @@
               </div>
             </div>
             <div class="legend">
-              <div class="leg-item"><span class="leg-dot" style="background:#fbbf24"></span>MRU hits<span class="leg-val">${fmtNum(mruHits)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#22d3ee"></span>MFU hits<span class="leg-val">${fmtNum(mfuHits)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#f472b6"></span>MRU ghost<span class="leg-val">${fmtNum(arc.mru_ghost_hits)}</span></div>
-              <div class="leg-item"><span class="leg-dot" style="background:#a78bfa"></span>MFU ghost<span class="leg-val">${fmtNum(arc.mfu_ghost_hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ffc24b;color:#ffc24b"></span>MRU hits<span class="leg-val">${fmtNum(mruHits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>MFU hits<span class="leg-val">${fmtNum(mfuHits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#c9a3ff;color:#c9a3ff"></span>MRU ghost<span class="leg-val">${fmtNum(arc.mru_ghost_hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ffb648;color:#ffb648"></span>MFU ghost<span class="leg-val">${fmtNum(arc.mfu_ghost_hits)}</span></div>
             </div>
           </div>
         </div>
@@ -849,17 +1123,17 @@
         <div class="card" data-accent="arc">
           <div class="card-head"><span class="card-title">Demand vs Prefetch</span></div>
           <div class="tiles">
-            <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value emerald">${fmtNum(demHits)}</div></div>
-            <div class="tile"><div class="tile-label">Demand Miss</div><div class="tile-value rose">${fmtNum(demMisses)}</div></div>
+            <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value mint">${fmtNum(demHits)}</div></div>
+            <div class="tile"><div class="tile-label">Demand Miss</div><div class="tile-value crimson">${fmtNum(demMisses)}</div></div>
             <div class="tile"><div class="tile-label">Prefetch Hits</div><div class="tile-value cyan">${fmtNum(preHits)}</div></div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>Demand hit rate</span><span>${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100).toFixed(1) : 0}%</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100) : 0}%;background:linear-gradient(90deg,#34d399,#22d3ee)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100) : 0}%;background:linear-gradient(90deg,#5ee3a0,#5fd6e8)"></div></div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>Prefetch hit rate</span><span>${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100).toFixed(1) : 0}%</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100) : 0}%;background:linear-gradient(90deg,#fbbf24,#fb7185)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100) : 0}%;background:linear-gradient(90deg,#ffc24b,#ff5d5d)"></div></div>
           </div>
         </div>
 
@@ -872,18 +1146,18 @@
             <div class="tile"><div class="tile-label">Headers</div><div class="tile-value amber">${fmtBytes(arc.hdr_size)}</div></div>
           </div>
           <div class="tiles">
-            <div class="tile"><div class="tile-label">Dbuf</div><div class="tile-value emerald">${fmtBytes(arc.dbuf_size)}</div></div>
-            <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value emerald">${fmtBytes(arc.dnode_size)}</div></div>
-            <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value rose">${fmtBytes(arc.deleted)}</div></div>
+            <div class="tile"><div class="tile-label">Dbuf</div><div class="tile-value mint">${fmtBytes(arc.dbuf_size)}</div></div>
+            <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value mint">${fmtBytes(arc.dnode_size)}</div></div>
+            <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value crimson">${fmtBytes(arc.deleted)}</div></div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>System memory available</span><span>${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100).toFixed(1) : 0}%</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100) : 0}%;background:linear-gradient(90deg,#34d399,#22d3ee)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100) : 0}%;background:linear-gradient(90deg,#5ee3a0,#5fd6e8)"></div></div>
           </div>
           <div class="muted-note">free ${fmtBytes(arc.memory_free_bytes)} / total ${fmtBytes(arc.memory_all_bytes)}</div>
         </div>
 
-        <!-- L2ARC card (only if present) -->
+        <!-- L2ARC card -->
         ${arc.l2_ndev > 0 || arc.l2_size > 0 ? `
         <div class="card" data-accent="arc">
           <div class="card-head"><span class="card-title">L2ARC</span>
@@ -892,19 +1166,20 @@
           <div class="tiles">
             <div class="tile"><div class="tile-label">L2 Size</div><div class="tile-value violet">${fmtBytes(arc.l2_size)}</div></div>
             <div class="tile"><div class="tile-label">L2 Asize</div><div class="tile-value cyan">${fmtBytes(arc.l2_asize)}</div></div>
-            <div class="tile"><div class="tile-label">L2 Hits</div><div class="tile-value emerald">${fmtNum(arc.l2_hits)}</div></div>
+            <div class="tile"><div class="tile-label">L2 Hits</div><div class="tile-value mint">${fmtNum(arc.l2_hits)}</div></div>
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>L2 hit rate</span><span>${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100).toFixed(1) : 0}%</span></div>
-            <div class="bar"><div class="bar-fill" style="width:${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100) : 0}%;background:linear-gradient(90deg,#a78bfa,#22d3ee)"></div></div>
+            <div class="bar"><div class="bar-fill" style="width:${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100) : 0}%;background:linear-gradient(90deg,#c9a3ff,#5fd6e8)"></div></div>
           </div>
         </div>` : `
         <div class="card" data-accent="arc">
           <div class="card-head"><span class="card-title">L2ARC</span></div>
-          <div class="state" style="padding:30px 10px">No L2ARC device detected</div>
+          <div class="state" style="padding:30px 10px">no L2ARC device detected</div>
           <div class="muted-note">attach a cache vdev to enable</div>
         </div>`}
       `;
+      renderStream();
     }
 
     async function fetchARC() {
@@ -918,15 +1193,25 @@
       } catch (err) {
         const el = document.getElementById('arc-state');
         document.getElementById('arc-grid').innerHTML = '';
-        el.innerHTML = `<div class="err">⚠️ Failed to load ARC data<div class="err-detail">${err.message}</div></div>`;
+        el.innerHTML = `<div class="err">⚠ failed to load ARC data<div class="err-detail">${escapeHTML(err.message)}</div></div>`;
         return null;
       }
     }
 
     /* ── orchestration ────────────────────────────────────────── */
     async function refreshAll() {
-      const [sys, pools, arc] = await Promise.all([fetchSysInfo(), fetchPools(), fetchARC()]);
-      renderKPIs(pools, arc);
+      const fab = document.getElementById('fab');
+      fab.classList.add('refreshing');
+      try {
+        const sys = await fetchSysInfo();
+        const tasks = [];
+        tasks.push(caps.zfs ? fetchPools() : Promise.resolve(null));
+        tasks.push(caps.arc ? fetchARC() : Promise.resolve(null));
+        const [, pools, arc] = await Promise.all(tasks);
+        renderKPIs(pools, arc);
+      } finally {
+        setTimeout(() => fab.classList.remove('refreshing'), 500);
+      }
     }
 
     refreshAll();
