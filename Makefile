@@ -44,3 +44,13 @@ prep-git-ssh:
 	git config user.email $(PROJECT_MGR_NAME)
 	git remote set-url origin $(PROJECT_URL_SSH)
 	git remote -v
+
+update: 
+	git pull
+	git pull --force --tags 
+
+deploy-test-nix: update build 
+	sudo -v
+	sudo systemctl stop $(PROJECT).service
+	sudo mv -f ./$(PROJECT) /nix/persist/root/bin 
+	sudo systemctl start $(PROJECT).service
