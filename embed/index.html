@@ -17,7 +17,7 @@
   --panel-2: #f7f9fc;
   --panel-hover: #f1f5fb;
   --line: #e3e7ee;
-  --line-strong: #c4cdDB;
+  --line-strong: #c4cddb;
   --text: #0f172a;
   --muted: #64748b;
   --dim: #94a3b8;
@@ -511,6 +511,56 @@ body::after {
   color: var(--dim); letter-spacing: 0.1em; margin-top: 2px;
 }
 
+/* ── Business-mode capacity stat (light theme) ───────────── */
+.cap-stat {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 0 6px;
+}
+.cap-stat-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+}
+.cap-stat-pct {
+  font-size: 2.1rem; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  color: var(--phosphor-bright);
+}
+.cap-stat-pct.warn { color: var(--amber-warn); }
+.cap-stat-pct.crit { color: var(--crimson); }
+.cap-stat-label {
+  font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.18em;
+  font-weight: 600; color: var(--muted);
+}
+.cap-stat-rows {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px;
+}
+.cap-stat-rows .sr {
+  display: flex; justify-content: space-between; font-size: 0.76rem;
+  color: var(--muted); letter-spacing: 0.04em; padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cap-stat-rows .sr span:last-child {
+  color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* ── Business-mode stacked ratio bar (light theme) ───────── */
+.ratio-bar-wrap { margin: 10px 0 4px; }
+.ratio-bar-head {
+  display: flex; justify-content: space-between; margin-bottom: 6px;
+  font-size: 0.7rem; color: var(--muted); letter-spacing: 0.1em;
+  text-transform: uppercase; font-weight: 600;
+}
+.ratio-bar-head span:last-child {
+  color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.ratio-bar {
+  height: 14px; background: var(--bar-bg); border: 1px solid var(--line);
+  border-radius: var(--radius-pill); overflow: hidden;
+  display: flex; min-width: 0;
+}
+.ratio-bar-seg {
+  height: 100%; transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+
 /* ── Spinning platter (signature) ────────────────────────── */
 .platter-card { display: flex; flex-direction: column; }
 .platter-stage {
@@ -754,11 +804,13 @@ body::after {
         else { icon.textContent = '☾'; label.textContent = 'dark'; }
       }
     }
+    function isLight() { return root.getAttribute('data-theme') !== 'dark'; }
     (function initTheme() {
       let saved = null;
       try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
       applyTheme(saved === 'dark' ? 'dark' : 'light');
     })();
+    let lastRefresh = 0;
     document.addEventListener('DOMContentLoaded', () => {
       const btn = document.getElementById('theme-toggle');
       if (btn) {
@@ -766,6 +818,8 @@ body::after {
           const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
           applyTheme(next);
           try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+          /* Re-render so theme-specific graphics swap immediately. */
+          if (Date.now() - lastRefresh > 800) refreshAll();
         });
       }
     });
@@ -818,6 +872,8 @@ body::after {
             !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             startMatrixRain();
           }
+          if (root.getAttribute('data-theme') !== 'dark' && !matrixRAF &&
+            Date.now() - lastRefresh > 800) refreshAll();
         });
       }
     });
@@ -1134,7 +1190,7 @@ body::after {
       grid.innerHTML = `
         <div class="card" style="grid-column:1 / -1">
           <div class="fastfetch">
-            <div class="fastfetch-logo"><pre>${escapeHTML(osAsciiLogo(s.os_id))}</pre></div>
+            ${isLight() ? '' : `<div class="fastfetch-logo"><pre>${escapeHTML(osAsciiLogo(s.os_id))}</pre></div>`}
             <div class="fastfetch-rows">
               <div class="ff-title">${escapeHTML(osLabel)} <span class="ff-host">@ ${escapeHTML(s.hostname || 'host')}</span></div>
               ${rows.join('')}
@@ -1245,6 +1301,19 @@ body::after {
             <span class="badge ${hc}">${escapeHTML(pool.state)}</span>
           </div>
           <div class="platter-stage">
+            ${isLight() ? `
+            <div class="cap-stat">
+              <div class="cap-stat-head">
+                <div class="cap-stat-pct ${cap > 90 ? 'crit' : cap > 75 ? 'warn' : ''}">${cap.toFixed(1)}%</div>
+                <div class="cap-stat-label">capacity used</div>
+              </div>
+              <div class="cap-stat-rows">
+                <div class="sr"><span>total</span><span>${escapeHTML(pool.properties.size.value)}</span></div>
+                <div class="sr"><span>allocated</span><span>${escapeHTML(pool.properties.allocated.value)}</span></div>
+                <div class="sr"><span>free</span><span>${escapeHTML(pool.properties.free.value)}</span></div>
+                <div class="sr"><span>health</span><span>${escapeHTML(pool.properties.health.value)}</span></div>
+              </div>
+            </div>` : `
             <div class="platter" title="capacity ${cap.toFixed(1)}%">
               ${platterSVG(cap, pool.state)}
             </div>
@@ -1253,7 +1322,7 @@ body::after {
               <div class="pi-row"><span>allocated</span><span>${escapeHTML(pool.properties.allocated.value)}</span></div>
               <div class="pi-row"><span>free</span><span>${escapeHTML(pool.properties.free.value)}</span></div>
               <div class="pi-row"><span>capacity</span><span style="color:${capColor}">${cap.toFixed(1)}%</span></div>
-            </div>
+            </div>`}
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>capacity</span><span>${cap.toFixed(2)}%</span></div>
@@ -1382,6 +1451,19 @@ body::after {
             <span class="badge ${hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline'}">${hitPct.toFixed(2)}%</span>
           </div>
           <div class="donut-row">
+            ${isLight() ? `
+            <div class="legend">
+              <div class="leg-item"><span class="leg-dot" style="background:#5ee3a0;color:#5ee3a0"></span>Hits<span class="leg-val">${fmtNum(arc.hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ff5d5d;color:#ff5d5d"></span>Misses<span class="leg-val">${fmtNum(arc.misses)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>I/O hits<span class="leg-val">${fmtNum(arc.iohits)}</span></div>
+            </div>
+            <div class="ratio-bar-wrap" style="flex:1;min-width:0">
+              <div class="ratio-bar-head"><span>hit ratio</span><span>${hitPct.toFixed(1)}%</span></div>
+              <div class="ratio-bar">
+                <div class="ratio-bar-seg" style="width:${hitPct}%;background:#5ee3a0"></div>
+                <div class="ratio-bar-seg" style="width:${missPct}%;background:#ff5d5d"></div>
+              </div>
+            </div>` : `
             <div class="donut">
               ${donutSVG([
                 { value: hitPct, color: '#5ee3a0' },
@@ -1396,7 +1478,7 @@ body::after {
               <div class="leg-item"><span class="leg-dot" style="background:#5ee3a0;color:#5ee3a0"></span>Hits<span class="leg-val">${fmtNum(arc.hits)}</span></div>
               <div class="leg-item"><span class="leg-dot" style="background:#ff5d5d;color:#ff5d5d"></span>Misses<span class="leg-val">${fmtNum(arc.misses)}</span></div>
               <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>I/O hits<span class="leg-val">${fmtNum(arc.iohits)}</span></div>
-            </div>
+            </div>`}
           </div>
           <div class="spark">${sparkline(hitHistory, '#5ee3a0')}</div>
           <div class="spark-axis"><span>−${HIST_LEN}</span><span>now</span></div>
@@ -1408,6 +1490,21 @@ body::after {
             <span class="badge b-online">${sizePct.toFixed(0)}% full</span>
           </div>
           <div class="donut-row">
+            ${isLight() ? `
+            <div class="legend">
+              <div class="leg-item"><span class="leg-dot" style="background:#ffb648;color:#ffb648"></span>Current<span class="leg-val">${fmtBytes(arc.size)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>Target<span class="leg-val">${fmtBytes(arc.c)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5ee3a0;color:#5ee3a0"></span>Min<span class="leg-val">${fmtBytes(arc.c_min)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ff5d5d;color:#ff5d5d"></span>Max<span class="leg-val">${fmtBytes(arc.c_max)}</span></div>
+            </div>
+            <div class="ratio-bar-wrap" style="flex:1;min-width:0">
+              <div class="ratio-bar-head"><span>size vs max</span><span>${sizePct.toFixed(1)}%</span></div>
+              <div class="ratio-bar">
+                <div class="ratio-bar-seg" style="width:${sizePct}%;background:#ffb648"></div>
+                <div class="ratio-bar-seg" style="width:${Math.max(targetPct - sizePct, 0)}%;background:#5fd6e8"></div>
+                <div class="ratio-bar-seg" style="width:${Math.max(100 - targetPct, 0)}%;background:var(--bar-bg)"></div>
+              </div>
+            </div>` : `
             <div class="donut">
               ${donutSVG([
                 { value: sizePct, color: '#ffb648' },
@@ -1424,7 +1521,7 @@ body::after {
               <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>Target<span class="leg-val">${fmtBytes(arc.c)}</span></div>
               <div class="leg-item"><span class="leg-dot" style="background:#5ee3a0;color:#5ee3a0"></span>Min<span class="leg-val">${fmtBytes(arc.c_min)}</span></div>
               <div class="leg-item"><span class="leg-dot" style="background:#ff5d5d;color:#ff5d5d"></span>Max<span class="leg-val">${fmtBytes(arc.c_max)}</span></div>
-            </div>
+            </div>`}
           </div>
           <div class="bar-wrap">
             <div class="bar-head"><span>Size vs Max</span><span>${sizePct.toFixed(1)}%</span></div>
@@ -1436,6 +1533,20 @@ body::after {
         <div class="card" data-accent="arc">
           <div class="card-head"><span class="card-title">MRU vs MFU Hits</span></div>
           <div class="donut-row">
+            ${isLight() ? `
+            <div class="legend">
+              <div class="leg-item"><span class="leg-dot" style="background:#ffc24b;color:#ffc24b"></span>MRU hits<span class="leg-val">${fmtNum(mruHits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>MFU hits<span class="leg-val">${fmtNum(mfuHits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#c9a3ff;color:#c9a3ff"></span>MRU ghost<span class="leg-val">${fmtNum(arc.mru_ghost_hits)}</span></div>
+              <div class="leg-item"><span class="leg-dot" style="background:#ffb648;color:#ffb648"></span>MFU ghost<span class="leg-val">${fmtNum(arc.mfu_ghost_hits)}</span></div>
+            </div>
+            <div class="ratio-bar-wrap" style="flex:1;min-width:0">
+              <div class="ratio-bar-head"><span>MRU vs MFU</span><span>${mfuPct.toFixed(0)}% MFU</span></div>
+              <div class="ratio-bar">
+                <div class="ratio-bar-seg" style="width:${mruPct}%;background:#ffc24b"></div>
+                <div class="ratio-bar-seg" style="width:${mfuPct}%;background:#5fd6e8"></div>
+              </div>
+            </div>` : `
             <div class="donut">
               ${donutSVG([
                 { value: mruPct, color: '#ffc24b' },
@@ -1451,7 +1562,7 @@ body::after {
               <div class="leg-item"><span class="leg-dot" style="background:#5fd6e8;color:#5fd6e8"></span>MFU hits<span class="leg-val">${fmtNum(mfuHits)}</span></div>
               <div class="leg-item"><span class="leg-dot" style="background:#c9a3ff;color:#c9a3ff"></span>MRU ghost<span class="leg-val">${fmtNum(arc.mru_ghost_hits)}</span></div>
               <div class="leg-item"><span class="leg-dot" style="background:#ffb648;color:#ffb648"></span>MFU ghost<span class="leg-val">${fmtNum(arc.mfu_ghost_hits)}</span></div>
-            </div>
+            </div>`}
           </div>
         </div>
 
@@ -1536,6 +1647,7 @@ body::after {
 
     /* ── orchestration ────────────────────────────────────────── */
     async function refreshAll() {
+      lastRefresh = Date.now();
       const fab = document.getElementById('fab');
       fab.classList.add('refreshing');
       try {
