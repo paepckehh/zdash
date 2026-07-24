@@ -21,7 +21,7 @@ func readSysFixture(t *testing.T, name string) []byte {
 }
 
 func TestParseOSRelease_Sample(t *testing.T) {
-	id, pretty, ver := parseOSRelease(readSysFixture(t, "os-release"))
+	id, pretty, ver, codename, variant, buildID := parseOSRelease(readSysFixture(t, "os-release"))
 	if id != "nixos" {
 		t.Errorf("id = %q, want nixos", id)
 	}
@@ -31,23 +31,39 @@ func TestParseOSRelease_Sample(t *testing.T) {
 	if ver != "23.11 (Tapir)" {
 		t.Errorf("version = %q, want 23.11 (Tapir)", ver)
 	}
+	if codename != "tapir" {
+		t.Errorf("codename = %q, want tapir", codename)
+	}
+	if variant != "" {
+		t.Errorf("variant = %q, want empty", variant)
+	}
+	if buildID != "" {
+		t.Errorf("buildID = %q, want empty", buildID)
+	}
 }
 
 func TestParseOSRelease_Empty(t *testing.T) {
-	id, pretty, ver := parseOSRelease([]byte(""))
-	if id != "" || pretty != "" || ver != "" {
-		t.Errorf("expected empty triple, got id=%q pretty=%q ver=%q", id, pretty, ver)
+	id, pretty, ver, codename, variant, buildID := parseOSRelease([]byte(""))
+	if id != "" || pretty != "" || ver != "" || codename != "" || variant != "" || buildID != "" {
+		t.Errorf("expected all empty, got id=%q pretty=%q ver=%q codename=%q variant=%q buildID=%q",
+			id, pretty, ver, codename, variant, buildID)
 	}
 }
 
 func TestParseOSRelease_QuotedAndComment(t *testing.T) {
-	in := []byte("# comment\nID=\"arch\"\nPRETTY_NAME=Arch Linux\n")
-	id, pretty, _ := parseOSRelease(in)
+	in := []byte("# comment\nID=\"arch\"\nPRETTY_NAME=Arch Linux\nVARIANT_ID=server\nBUILD_ID=rolling\n")
+	id, pretty, _, _, variant, buildID := parseOSRelease(in)
 	if id != "arch" {
 		t.Errorf("id = %q, want arch", id)
 	}
 	if pretty != "Arch Linux" {
 		t.Errorf("pretty = %q, want Arch Linux", pretty)
+	}
+	if variant != "server" {
+		t.Errorf("variant = %q, want server", variant)
+	}
+	if buildID != "rolling" {
+		t.Errorf("buildID = %q, want rolling", buildID)
 	}
 }
 
@@ -85,19 +101,29 @@ func TestParseMemInfo_Empty(t *testing.T) {
 }
 
 func TestParseCPUInfo_Sample(t *testing.T) {
-	model, cores := parseCPUInfo(readSysFixture(t, "cpuinfo"))
+	model, vendor, logical, physical, freq := parseCPUInfo(readSysFixture(t, "cpuinfo"))
 	if model != "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz" {
 		t.Errorf("model = %q, want Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz", model)
 	}
-	if cores != 4 {
-		t.Errorf("cores = %d, want 4", cores)
+	if vendor != "GenuineIntel" {
+		t.Errorf("vendor = %q, want GenuineIntel", vendor)
+	}
+	if logical != 4 {
+		t.Errorf("logical = %d, want 4", logical)
+	}
+	if physical != 4 {
+		t.Errorf("physical = %d, want 4", physical)
+	}
+	if freq != 1992.0 {
+		t.Errorf("freq = %v, want 1992.0", freq)
 	}
 }
 
 func TestParseCPUInfo_Empty(t *testing.T) {
-	model, cores := parseCPUInfo([]byte(""))
-	if model != "" || cores != 0 {
-		t.Errorf("expected empty/zero, got model=%q cores=%d", model, cores)
+	model, vendor, logical, physical, freq := parseCPUInfo([]byte(""))
+	if model != "" || vendor != "" || logical != 0 || physical != 0 || freq != 0 {
+		t.Errorf("expected all empty, got model=%q vendor=%q logical=%d physical=%d freq=%v",
+			model, vendor, logical, physical, freq)
 	}
 }
 
@@ -176,19 +202,32 @@ func TestSatSub(t *testing.T) {
 func TestSysInfo_RoundTrip(t *testing.T) {
 	first := &SysInfo{
 		Hostname:             "host",
+		FQDN:                 "host.example.com",
 		OS:                   "NixOS 23.11",
+		OSCodename:           "tapir",
+		OSVariant:            "server",
+		OSBuildID:            "20260718",
 		Kernel:               "Linux",
 		KernelRelease:        "6.6.44",
 		Machine:              "amd64",
+		HostVendor:           "HP",
+		HostProduct:          "t640",
 		UptimeSeconds:        187634.20,
 		Uptime:               "2d 4h 7m 14s",
 		CPUModel:             "Intel i7",
+		CPUVendor:            "GenuineIntel",
 		CPUCores:             4,
+		CPUPhysicalCores:     2,
+		CPUFreqMHz:           1992.0,
+		CPUMaxMHz:            3300.0,
 		Load1:                0.42,
 		MemoryTotalBytes:     16384000 * 1024,
 		MemoryAvailableBytes: 8192000 * 1024,
 		Shell:                "/run/current-system/sw/bin/bash",
+		Locale:               "C.UTF-8",
 		Processes:            1234,
+		NetIface:             "enp2s0f0",
+		NetIPv4:              "10.20.0.99",
 		Timestamp:            1700000000000,
 	}
 	reencoded, err := json.Marshal(first)
@@ -200,7 +239,11 @@ func TestSysInfo_RoundTrip(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if second.Hostname != first.Hostname || second.MemoryTotalBytes != first.MemoryTotalBytes ||
-		second.Uptime != first.Uptime || second.CPUCores != first.CPUCores {
+		second.Uptime != first.Uptime || second.CPUCores != first.CPUCores ||
+		second.OSCodename != first.OSCodename || second.CPUVendor != first.CPUVendor ||
+		second.NetIPv4 != first.NetIPv4 || second.Locale != first.Locale ||
+		second.HostProduct != first.HostProduct || second.CPUMaxMHz != first.CPUMaxMHz ||
+		second.FQDN != first.FQDN {
 		t.Errorf("round-trip mismatch: %+v != %+v", second, *first)
 	}
 }
@@ -214,6 +257,26 @@ func TestFetchSysInfo_ContextCanceled(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "sysinfo context") {
 		t.Errorf("err = %q, want a sysinfo context error", err)
+	}
+}
+
+func TestSysInfo_CapabilityFieldsSerialize(t *testing.T) {
+	// Both booleans must round-trip through JSON so the frontend can rely on
+	// their presence to decide tab visibility.
+	in := &SysInfo{ZFSAvailable: true, ARCAvailable: false}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var out SysInfo
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !out.ZFSAvailable || out.ARCAvailable {
+		t.Errorf("capability round-trip mismatch: zfs=%v arc=%v", out.ZFSAvailable, out.ARCAvailable)
+	}
+	if !strings.Contains(string(b), "zfs_available") || !strings.Contains(string(b), "arc_available") {
+		t.Errorf("JSON missing capability keys: %s", b)
 	}
 }
 
@@ -256,5 +319,79 @@ func TestHandleSysInfoAPI_GET(t *testing.T) {
 func TestCountProcesses_NonExistent(t *testing.T) {
 	if countProcesses(filepath.Join(t.TempDir(), "nope")) != 0 {
 		t.Error("expected 0 processes for missing dir")
+	}
+}
+
+func TestParseDefaultRoute_Sample(t *testing.T) {
+	iface := parseDefaultRoute(readSysFixture(t, "route"))
+	if iface != "enp2s0f0" {
+		t.Errorf("iface = %q, want enp2s0f0", iface)
+	}
+}
+
+func TestParseDefaultRoute_Empty(t *testing.T) {
+	if parseDefaultRoute([]byte("")) != "" {
+		t.Error("expected empty string for empty route file")
+	}
+}
+
+func TestParseDefaultRoute_None(t *testing.T) {
+	in := []byte("Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n" +
+		"lo 0000007F 00000000 0001 0 0 0 0000007F 0 0 0\n")
+	if parseDefaultRoute(in) != "" {
+		t.Error("expected empty when no default route")
+	}
+}
+
+func TestParseIPv4ForIface_Sample(t *testing.T) {
+	ip := parseIPv4ForIface(readSysFixture(t, "fib_trie"), "enp2s0f0")
+	if ip != "10.20.0.99" {
+		t.Errorf("ip = %q, want 10.20.0.99", ip)
+	}
+}
+
+func TestParseIPv4ForIface_SkipsLoopback(t *testing.T) {
+	in := []byte("   |-- 127.0.0.1\n      /32 host LOCAL\n")
+	if parseIPv4ForIface(in, "lo") != "" {
+		t.Error("expected empty when only loopback present")
+	}
+}
+
+func TestParseIPv4ForIface_Empty(t *testing.T) {
+	if parseIPv4ForIface([]byte(""), "x") != "" {
+		t.Error("expected empty for empty input")
+	}
+}
+
+func TestKhzToMHz(t *testing.T) {
+	cases := []struct {
+		in   string
+		want float64
+	}{
+		{"3300000", 3300},
+		{"1992000", 1992},
+		{"0", 0},
+		{"notanumber", 0},
+		{"", 0},
+	}
+	for _, c := range cases {
+		if got := khzToMHz(c.in); got != c.want {
+			t.Errorf("khzToMHz(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func TestReadTrim_MissingFile(t *testing.T) {
+	if readTrim(filepath.Join(t.TempDir(), "nope")) != "" {
+		t.Error("expected empty string for missing file")
+	}
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	if got := firstNonEmpty("", "", "c", "d"); got != "c" {
+		t.Errorf("got %q, want c", got)
+	}
+	if got := firstNonEmpty("", ""); got != "" {
+		t.Errorf("got %q, want empty", got)
 	}
 }
