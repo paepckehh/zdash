@@ -13,6 +13,13 @@ import (
 var version = "dev"
 
 func main() {
+	// Surface the linked version to the zdash package so HandleIndex can
+	// stamp it into the dashboard HTML. When the build injected the value
+	// directly into paepcke.de/zdash.Version via ldflags this is a no-op.
+	if version != "dev" {
+		zdash.Version = version
+	}
+
 	addr := os.Getenv("BIND_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:8080"

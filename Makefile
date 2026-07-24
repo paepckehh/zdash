@@ -7,6 +7,8 @@ PROJECT_MGR_NAME=PAECPCKE, Michael
 PROJECT_REPO=$(PROJECT_BASE)/$(PROJECT)
 PROJECT_URL_HTTPS=https://$(PROJECT_HOST)/$(PROJECT_HOST_ID)/$(PROJECT)
 PROJECT_URL_SSH=git@$(PROJECT_HOST):$(PROJECT_HOST_ID)/$(PROJECT)
+# Semantic version: latest git tag, or "dev" when no tags exist.
+VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo 'dev')
 
 all: info
 
@@ -18,7 +20,7 @@ run:    build
 
 build:
 	touch $(PROJECT) && rm $(PROJECT)
-	go build -C cmd/$(PROJECT) -o ../../zdash -ldflags="-X main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
+	go build -C cmd/$(PROJECT) -o ../../zdash -ldflags="-X 'main.version=$(VERSION)' -X 'paepcke.de/zdash.Version=$(VERSION)'"
 
 deps:
 	touch go.mod go.sum

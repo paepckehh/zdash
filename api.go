@@ -1,6 +1,7 @@
 package zdash
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -14,6 +15,11 @@ import (
 
 //go:embed embed/index.html
 var indexHTML embed.FS
+
+// Version is the zDash build version, injected at build time via
+// -ldflags="-X 'paepcke.de/zdash.Version=...'". It defaults to "dev" when
+// no version was linked in (e.g. go run / go build without ldflags).
+var Version = "dev"
 
 // zpool binary on nixos
 const nixpath = "/run/current-system/sw/bin/zpool"
@@ -75,9 +81,10 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error: missing embedded resources", http.StatusInternalServerError)
 		return
 	}
+	page := bytes.Replace(data, []byte("__ZDASH_VERSION__"), []byte(Version), 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	_, _ = w.Write(page)
 }
 
 // resolveZpoolBin picks the zpool binary to invoke. It prefers the NixOS

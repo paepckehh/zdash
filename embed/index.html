@@ -190,8 +190,10 @@ body::after {
 
 /* ── Host tag in brand ────────────────────────────────────── */
 .brand-host {
-  font-size: 0.62em; font-weight: 600; letter-spacing: 0.01em;
-  color: var(--muted); margin-left: 2px; text-transform: none;
+  font-size: 0.82em; font-weight: 800; letter-spacing: -0.01em;
+  color: var(--phosphor-bright); margin-left: 4px; text-transform: none;
+  text-shadow: var(--glow);
+  opacity: 0.92;
 }
 :root[data-theme="dark"] .brand-host { text-shadow: var(--glow); }
 
@@ -204,8 +206,8 @@ body::after {
 .brand-block { display: flex; flex-direction: column; gap: 4px; }
 .brand {
   font-family: var(--font-head);
-  font-size: clamp(1.4rem, 3.2vw, 1.95rem); font-weight: 800;
-  letter-spacing: -0.01em; line-height: 1; color: var(--phosphor-bright);
+  font-size: clamp(1.9rem, 4.6vw, 2.9rem); font-weight: 900;
+  letter-spacing: -0.022em; line-height: 1; color: var(--phosphor-bright);
   text-shadow: var(--glow);
   display: flex; align-items: baseline; gap: 2px;
 }
@@ -216,7 +218,7 @@ body::after {
 }
 @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
 .brand-sub {
-  font-size: 0.74rem; color: var(--muted); letter-spacing: 0.18em;
+  font-size: 0.82rem; color: var(--muted); letter-spacing: 0.2em;
   text-transform: uppercase; font-weight: 500;
 }
 .brand-sub .dot { color: var(--phosphor); margin: 0 4px; }
@@ -224,6 +226,15 @@ body::after {
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
   font-size: 0.74rem; color: var(--dim); letter-spacing: 0.08em;
 }
+.hero-meta .version-box {
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.04em; color: var(--muted);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 2px 6px; background: var(--panel-2);
+  margin-top: 2px; text-transform: none;
+}
+.hero-meta .version-box .v-label { color: var(--dim); margin-right: 3px; }
+.hero-meta .version-box .v-tag { color: var(--phosphor); }
 .hero-meta .live {
   display: inline-flex; align-items: center; gap: 7px; color: var(--mint);
   text-shadow: var(--glow-mint); text-transform: uppercase; font-size: 0.72rem;
@@ -699,6 +710,9 @@ body::after {
         <div class="hero-meta">
           <span class="live">live</span>
           <span id="hero-uptime">— uptime</span>
+          <div class="version-box" title="zDash build version">
+            <span class="v-label">zDash</span><span class="v-tag" id="version-tag">__ZDASH_VERSION__</span>
+          </div>
           <div class="hero-actions">
             <button class="theme-toggle" id="theme-toggle" type="button" title="Switch theme">
               <span class="icon" id="theme-icon">☾</span><span id="theme-label">dark</span>
@@ -1099,10 +1113,7 @@ body::after {
       const netStr = s.net_iface
         ? `${escapeHTML(s.net_iface)}${s.net_ipv4 ? ` · ${escapeHTML(s.net_ipv4)}` : ''}`
         : '—';
-      const osFull = s.os_version
-        ? `${escapeHTML(osLabel)} ${escapeHTML(s.os_version)}` +
-          (s.os_codename ? ` (${escapeHTML(s.os_codename)})` : '')
-        : escapeHTML(osLabel);
+      const osFull = escapeHTML(osLabel);
 
       const rows = [
         ffRow('OS', osFull),
@@ -1112,8 +1123,6 @@ body::after {
         ffRow('Kernel ver', escapeHTML(s.kernel_version || '—')),
         ffRow('Uptime', escapeHTML(s.uptime || '—')),
         ffRow('Packages', escapeHTML(s.processes ? s.processes.toLocaleString() : '—')),
-        ffRow('Shell', escapeHTML(s.shell || '—')),
-        ffRow('Terminal', escapeHTML(s.terminal || '—')),
         ffRow('Locale', escapeHTML(s.locale || '—')),
         ffRow('CPU', `${escapeHTML(s.cpu_model || '—')} <span class="ff-sep">·</span> ${coresStr} cores`),
         ffRow('Freq', escapeHTML(freqStr)),
