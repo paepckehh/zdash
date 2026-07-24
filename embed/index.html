@@ -1543,7 +1543,7 @@ body::after {
         const tasks = [];
         tasks.push(caps.zfs ? fetchPools() : Promise.resolve(null));
         tasks.push(caps.arc ? fetchARC() : Promise.resolve(null));
-        const [, pools, arc] = await Promise.all(tasks);
+        const [pools, arc] = await Promise.all(tasks);
         renderKPIs(pools, arc);
       } finally {
         setTimeout(() => fab.classList.remove('refreshing'), 500);
