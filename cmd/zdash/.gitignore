@@ -1,1 +1,3 @@
-./zdash
+# Never commit Go build binaries
+/zdash
+/zdash.exe
