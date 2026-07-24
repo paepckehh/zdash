@@ -188,52 +188,12 @@ body::after {
 
 .wrap { max-width: 1340px; margin: 0 auto; position: relative; z-index: 2; }
 
-/* ── Host banner (prominent headline) ─────────────────────── */
-.host-banner {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 26px 18px 28px; margin-bottom: 28px;
-  background: var(--panel); border: 1px solid var(--host-border);
-  border-radius: var(--radius); box-shadow: var(--shadow-lg);
-  text-align: center; position: relative; overflow: hidden;
+/* ── Host tag in brand ────────────────────────────────────── */
+.brand-host {
+  font-size: 0.62em; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--muted); margin-left: 2px; text-transform: none;
 }
-.host-banner::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: var(--host-accent);
-  background-size: 200% 100%;
-  animation: accent-flow 5s linear infinite;
-}
-@keyframes accent-flow { to { background-position: 200% 0; } }
-:root[data-theme="dark"] .host-banner {
-  border-color: var(--line-strong);
-  box-shadow: var(--glow), var(--shadow-lg);
-}
-.host-headline {
-  font-family: var(--font-head);
-  font-size: clamp(1.7rem, 4.8vw, 3rem);
-  font-weight: 800; letter-spacing: 0.01em; line-height: 1.05;
-  color: var(--phosphor-bright);
-  display: inline-flex; align-items: baseline; gap: 4px;
-  word-break: break-all;
-}
-:root[data-theme="light"] .host-headline { letter-spacing: -0.02em; font-weight: 800; }
-:root[data-theme="dark"] .host-headline {
-  letter-spacing: 0.04em;
-  text-shadow: var(--glow);
-}
-.host-headline .cursor {
-  display: inline-block; width: 0.5ch; height: 0.82em;
-  background: var(--phosphor-bright); margin-left: 4px;
-  animation: var(--matrix-cursor);
-  box-shadow: var(--glow);
-}
-.host-fqdn {
-  font-family: var(--mono);
-  font-size: 0.86rem; letter-spacing: 0.16em;
-  text-transform: lowercase;
-  color: var(--muted);
-}
-:root[data-theme="dark"] .host-fqdn { text-shadow: var(--glow); }
-.host-fqdn .dot { color: var(--phosphor); margin: 0 4px; }
+:root[data-theme="dark"] .brand-host { text-shadow: var(--glow); }
 
 /* ── Hero ─────────────────────────────────────────────────── */
 .hero { margin-bottom: 26px; }
@@ -731,15 +691,9 @@ body::after {
   <canvas id="matrix-rain"></canvas>
   <div class="wrap">
     <header class="hero">
-      <div class="host-banner">
-        <div class="host-headline" id="host-headline">
-          <span id="host-name">—</span><span class="cursor"></span>
-        </div>
-        <div class="host-fqdn" id="host-fqdn">connecting<span class="dot">·</span>zdash</div>
-      </div>
       <div class="hero-top">
         <div class="brand-block">
-          <div class="brand">zDash<span class="cursor"></span></div>
+          <div class="brand">zDash<span class="brand-host" id="brand-host"></span><span class="cursor"></span></div>
           <div class="brand-sub">zfs + arc monitor <span class="dot">·</span> storage console</div>
         </div>
         <div class="hero-meta">
@@ -1176,15 +1130,12 @@ body::after {
 
       document.getElementById('hero-uptime').textContent = (s.uptime || '—') + ' uptime';
 
-      const hostNameEl = document.getElementById('host-name');
-      const fqdnEl = document.getElementById('host-fqdn');
+      const brandHostEl = document.getElementById('brand-host');
       const host = s.hostname || 'host';
       const fqdn = s.fqdn || '';
-      if (hostNameEl) hostNameEl.textContent = host;
-      if (fqdnEl) {
-        fqdnEl.innerHTML = fqdn
-          ? `${escapeHTML(fqdn)}<span class="dot">·</span>zdash`
-          : `${escapeHTML(host)}<span class="dot">·</span>zdash`;
+      if (brandHostEl) {
+        const label = fqdn ? `@${fqdn}` : `@${host}`;
+        brandHostEl.textContent = label;
       }
 
       grid.innerHTML = `
