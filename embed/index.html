@@ -1132,7 +1132,6 @@ body::after {
             ? ` <span class="ff-bar bar"><span class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},#ffd989)"></span></span>`
             : '')),
         ffRow('Swap', escapeHTML(swapStr)),
-        ffRow('Load', escapeHTML(loadStr)),
         ffRow('Network', netStr),
         ffRow('Machine', escapeHTML(s.machine || '—')),
       ];
