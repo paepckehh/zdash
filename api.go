@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -79,6 +80,32 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
+// resolveZpoolBin picks the zpool binary to invoke. It prefers the NixOS
+// layout (where zpool is not on the default $PATH) and falls back to the
+// basename lookup, which relies on the caller's $PATH.
+func resolveZpoolBin() string {
+	if _, err := os.Stat(nixpath); err == nil {
+		return nixpath
+	}
+	return "zpool"
+}
+
+// fetchZpool runs `zpool list -v --json` and decodes the result. It is the
+// single seam between HTTP transport and the zpool subprocess, which makes it
+// testable with a stubbed bin (e.g. a shell script that prints canned JSON).
+func fetchZpool(ctx context.Context, bin string) (*ZPoolOutput, error) {
+	cmd := exec.CommandContext(ctx, bin, "list", "-v", "--json")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("zpool exec: %w", err)
+	}
+	var data ZPoolOutput
+	if err := json.Unmarshal(out, &data); err != nil {
+		return nil, fmt.Errorf("parse zpool json: %w", err)
+	}
+	return &data, nil
+}
+
 func HandleZPoolAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -88,28 +115,14 @@ func HandleZPoolAPI(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	bin := "zpool"
-	if _, err := os.Stat(nixpath); err == nil {
-		bin = nixpath
-	}
-	cmd := exec.CommandContext(ctx, bin, "list", "-v", "--json")
-	out, err := cmd.Output()
+	data, err := fetchZpool(ctx, resolveZpoolBin())
 	if err != nil {
-		log.Printf("⚠️  zpool command failed: %v", err)
+		log.Printf("⚠️  zpool fetch failed: %v", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to execute zpool command. Ensure it's installed and you have sufficient permissions (usually root or zfs group).",
 		})
-		return
-	}
-
-	var data ZPoolOutput
-	if err := json.Unmarshal(out, &data); err != nil {
-		log.Printf("⚠️  Failed to parse zpool JSON: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to parse zpool JSON output."})
 		return
 	}
 

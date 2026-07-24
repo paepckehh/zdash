@@ -2,7 +2,7 @@ builds:
   -
     id: "zdash"
     binary: zdash
-    main: main.go
+    main: ./cmd/zdash
     env:
       - CGO_ENABLED=0
     goos:

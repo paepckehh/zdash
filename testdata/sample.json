@@ -1,0 +1,137 @@
+{
+  "output_version": {
+    "command": "zpool list -v",
+    "vers_major": 1,
+    "vers_minor": 0
+  },
+  "pools": {
+    "tank": {
+      "name": "tank",
+      "type": "raidz1",
+      "state": "ONLINE",
+      "pool_guid": "1234567890",
+      "txg": "42",
+      "spa_version": "5000",
+      "zpl_version": "5",
+      "properties": {
+        "size": { "value": "9.94G", "source": { "": "local" } },
+        "allocated": { "value": "3.21G", "source": { "": "local" } },
+        "free": { "value": "6.73G", "source": { "": "local" } },
+        "checkpoint": { "value": "-", "source": {} },
+        "expandsize": { "value": "-", "source": {} },
+        "fragmentation": { "value": "12%", "source": { "": "local" } },
+        "capacity": { "value": "32%", "source": { "": "local" } },
+        "dedupratio": { "value": "1.00x", "source": { "": "local" } },
+        "health": { "value": "ONLINE", "source": { "": "system" } },
+        "altroot": { "value": "-", "source": { "": "default" } }
+      },
+      "vdevs": {
+        "mirror-0": {
+          "name": "mirror-0",
+          "vdev_type": "mirror",
+          "guid": "11111111",
+          "class": "replication",
+          "state": "ONLINE",
+          "path": "/dev/sda1",
+          "properties": {
+            "size": { "value": "9.94G", "source": { "": "local" } },
+            "allocated": { "value": "3.21G", "source": { "": "local" } },
+            "free": { "value": "6.73G", "source": { "": "local" } },
+            "checkpoint": { "value": "-", "source": {} },
+            "expandsize": { "value": "-", "source": {} },
+            "fragmentation": { "value": "12%", "source": { "": "local" } },
+            "capacity": { "value": "32%", "source": { "": "local" } },
+            "dedupratio": { "value": "1.00x", "source": { "": "local" } },
+            "health": { "value": "ONLINE", "source": { "": "system" } },
+            "altroot": { "value": "-", "source": { "": "default" } }
+          },
+          "vdevs": {
+            "/dev/sda1": {
+              "name": "/dev/sda1",
+              "vdev_type": "disk",
+              "guid": "22222222",
+              "class": "device",
+              "state": "ONLINE",
+              "path": "/dev/sda1",
+              "properties": {
+                "size": { "value": "9.94G", "source": { "": "local" } },
+                "allocated": { "value": "3.21G", "source": { "": "local" } },
+                "free": { "value": "6.73G", "source": { "": "local" } },
+                "checkpoint": { "value": "-", "source": {} },
+                "expandsize": { "value": "-", "source": {} },
+                "fragmentation": { "value": "12%", "source": { "": "local" } },
+                "capacity": { "value": "32%", "source": { "": "local" } },
+                "dedupratio": { "value": "1.00x", "source": { "": "local" } },
+                "health": { "value": "ONLINE", "source": { "": "system" } },
+                "altroot": { "value": "-", "source": { "": "default" } }
+              }
+            },
+            "/dev/sdb1": {
+              "name": "/dev/sdb1",
+              "vdev_type": "disk",
+              "guid": "33333333",
+              "class": "device",
+              "state": "DEGRADED",
+              "path": "/dev/sdb1",
+              "properties": {
+                "size": { "value": "9.94G", "source": { "": "local" } },
+                "allocated": { "value": "3.21G", "source": { "": "local" } },
+                "free": { "value": "6.73G", "source": { "": "local" } },
+                "checkpoint": { "value": "-", "source": {} },
+                "expandsize": { "value": "-", "source": {} },
+                "fragmentation": { "value": "12%", "source": { "": "local" } },
+                "capacity": { "value": "32%", "source": { "": "local" } },
+                "dedupratio": { "value": "1.00x", "source": { "": "local" } },
+                "health": { "value": "DEGRADED", "source": { "": "system" } },
+                "altroot": { "value": "-", "source": { "": "default" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "oldpool": {
+      "name": "oldpool",
+      "type": "stripe",
+      "state": "DEGRADED",
+      "pool_guid": "9876543210",
+      "txg": "7",
+      "spa_version": "5000",
+      "zpl_version": "5",
+      "properties": {
+        "size": { "value": "2.00G", "source": { "": "local" } },
+        "allocated": { "value": "2.00G", "source": { "": "local" } },
+        "free": { "value": "0", "source": { "": "local" } },
+        "checkpoint": { "value": "-", "source": {} },
+        "expandsize": { "value": "-", "source": {} },
+        "fragmentation": { "value": "85%", "source": { "": "local" } },
+        "capacity": { "value": "100%", "source": { "": "local" } },
+        "dedupratio": { "value": "1.00x", "source": { "": "local" } },
+        "health": { "value": "DEGRADED", "source": { "": "system" } },
+        "altroot": { "value": "-", "source": { "": "default" } }
+      },
+      "vdevs": {
+        "/dev/sdc1": {
+          "name": "/dev/sdc1",
+          "vdev_type": "disk",
+          "guid": "44444444",
+          "class": "device",
+          "state": "ONLINE",
+          "path": "/dev/sdc1",
+          "properties": {
+            "size": { "value": "2.00G", "source": { "": "local" } },
+            "allocated": { "value": "2.00G", "source": { "": "local" } },
+            "free": { "value": "0", "source": { "": "local" } },
+            "checkpoint": { "value": "-", "source": {} },
+            "expandsize": { "value": "-", "source": {} },
+            "fragmentation": { "value": "85%", "source": { "": "local" } },
+            "capacity": { "value": "100%", "source": { "": "local" } },
+            "dedupratio": { "value": "1.00x", "source": { "": "local" } },
+            "health": { "value": "DEGRADED", "source": { "": "system" } },
+            "altroot": { "value": "-", "source": { "": "default" } }
+          }
+        }
+      }
+    }
+  }
+}
