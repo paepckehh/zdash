@@ -1698,47 +1698,6 @@ body::after {
         </div>`;
     }
 
-    // ATA attributes the dashboard surfaces as primary health indicators. IDs
-    // match smartctl's stable attribute numbering.
-    const ATA_HIGHLIGHT_IDS = [5, 9, 12, 187, 188, 194, 197, 198, 199, 240, 241, 242];
-
-    function renderATACard(details) {
-      const ata = details.ata;
-      if (!ata) return '';
-      const attrById = {};
-      for (const a of ata.attributes) attrById[a.id] = a;
-      const rows = ATA_HIGHLIGHT_IDS
-        .map(id => attrById[id])
-        .filter(Boolean)
-        .map(a => {
-          const flagged = a.when_failed && a.when_failed !== '-';
-          const rawNonZero = a.raw && a.raw.value > 0;
-          const isCriticalSector = [5, 197, 198].includes(a.id) && rawNonZero;
-          const valColor = flagged || isCriticalSector ? 'crimson'
-            : (a.id === 194) ? 'cyan'
-            : 'text';
-          return `
-            <div class="vdev">
-              <span class="vdev-name">${escapeHTML(a.name)} <span style="opacity:0.5;font-weight:400">#${a.id}</span></span>
-              <div class="vdev-info">
-                <span style="color:var(--dim);font-size:0.66rem">val ${a.value} / worst ${a.worst} / thresh ${a.thresh}</span>
-                <span class="tile-value ${valColor}" style="font-size:0.78rem">${escapeHTML(a.raw && a.raw.string ? a.raw.string : String(a.raw && a.raw.value || 0))}</span>
-              </div>
-            </div>`;
-        }).join('');
-      const selfBadge = ata.self_test && ata.self_test.passed
-        ? `<span class="badge b-online">self-test ok</span>`
-        : `<span class="badge b-offline">self-test fail</span>`;
-      return `
-        <div class="card" data-accent="pool">
-          <div class="card-head"><span class="card-title">ATA SMART Attributes</span>${selfBadge}</div>
-          <div class="vdevs">
-            <div class="vdevs-title">key attributes (value / worst / threshold · raw)</div>
-            ${rows || '<div class="muted-note">no attributes reported</div>'}
-          </div>
-        </div>`;
-    }
-
     function renderSmartPane(dev, paneEl) {
       const d = dev.details;
       if (!d) {
@@ -1789,7 +1748,6 @@ body::after {
         </div>
 
         ${d.nvme ? renderNVMeCard(d) : ''}
-        ${d.ata ? renderATACard(d) : ''}
 
         ${(!d.nvme && !d.ata) ? `
         <div class="card" data-accent="pool">
@@ -1798,6 +1756,16 @@ body::after {
           <div class="muted-note">SCSI/libata devices may not expose SMART attributes</div>
         </div>` : ''}
       `;
+    }
+
+    // smartSortKey orders NVMe drives before everything else, then sorts
+    // alphabetically by device name within each group. NVMe is detected via
+    // the scan protocol field, the per-device protocol, or the device name
+    // (smartctl names NVMe devices /dev/nvme*).
+    function smartSortKey(dev) {
+      const proto = (dev.protocol || (dev.details && dev.details.protocol) || '').toUpperCase();
+      const isNvme = proto === 'NVME' || /nvme/i.test(dev.name || '');
+      return (isNvme ? '0:' : '1:') + (dev.name || '');
     }
 
     function ensureSmartTab(dev) {
@@ -1859,11 +1827,26 @@ body::after {
           clearSmartTabs();
           return data;
         }
+        // Sort NVMe drives first, then alphabetically by name. The sort is
+        // applied every poll and the DOM tab buttons are re-ordered to match
+        // so the order stays stable as drives appear/disappear.
+        const sorted = [...data.devices].sort((a, b) => {
+          const ka = smartSortKey(a), kb = smartSortKey(b);
+          return ka < kb ? -1 : ka > kb ? 1 : 0;
+        });
         // Mount a tab per discovered drive (reuse existing tabs/panes).
         const seen = new Set();
-        for (const dev of data.devices) {
+        for (const dev of sorted) {
           seen.add(dev.name);
           ensureSmartTab(dev);
+        }
+        // Re-order the smart tab buttons in the nav so the visual order
+        // tracks the sorted device list. appendChild on an existing node
+        // moves it (no duplicate); static tabs stay at the front.
+        const tabsNav = document.querySelector('.tabs');
+        for (const dev of sorted) {
+          const btn = smartTabs.get(dev.name);
+          if (btn) tabsNav.appendChild(btn);
         }
         // Remove tabs for drives that disappeared between scans.
         for (const [name, btn] of [...smartTabs]) {
