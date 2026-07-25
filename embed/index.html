@@ -73,7 +73,7 @@
   --badge-degraded-bg: rgba(217,119,6,0.10);
   --badge-offline-bg: rgba(220,38,38,0.10);
   --transition: 0.22s cubic-bezier(0.4,0,0.2,1);
-  --hover-lift: translateY(-3px);
+  --hover-lift: translateY(-2px);
   --ambient: none;
   --app-bg: radial-gradient(120% 80% at 50% -10%, rgba(79,70,229,0.06), transparent 60%),
     linear-gradient(180deg, #eef1f6 0%, #e7ecf3 100%);
@@ -86,9 +86,9 @@
   --ink: #000000;
   --ink-2: #050905;
   --screen: #020602;
-  --panel: rgba(2,12,4,0.88);
-  --panel-2: rgba(4,18,6,0.55);
-  --panel-hover: rgba(6,30,12,0.95);
+  --panel: rgba(3,14,6,0.94);
+  --panel-2: rgba(5,20,8,0.72);
+  --panel-hover: rgba(6,30,12,0.96);
   --line: rgba(0,255,70,0.20);
   --line-strong: rgba(0,255,70,0.46);
   --text: #b6ffb6;
@@ -113,9 +113,9 @@
   --glow-crimson: 0 0 8px rgba(255,60,110,0.6), 0 0 20px rgba(255,60,110,0.28);
   --shadow: 0 0 0 1px rgba(0,255,70,0.06), 0 8px 28px rgba(0,0,0,0.7);
   --shadow-lg: 0 0 0 1px rgba(0,255,70,0.10), 0 14px 40px rgba(0,0,0,0.8);
-  --radius: 2px;
-  --radius-sm: 2px;
-  --radius-pill: 2px;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-pill: 999px;
   --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   --scanlines: repeating-linear-gradient(
     0deg, rgba(0,0,0,0.26) 0px, rgba(0,0,0,0.26) 1px, transparent 1px, transparent 3px
@@ -132,7 +132,7 @@
   --spark-bg: rgba(0,255,70,0.035);
   --donut-glow: drop-shadow(0 0 8px rgba(0,255,122,0.5));
   --shimmer-bg: linear-gradient(90deg, transparent, rgba(0,255,122,0.34), transparent);
-  --kpi-bg: rgba(2,12,4,0.6);
+  --kpi-bg: rgba(3,14,6,0.9);
   --kpi-border: rgba(0,255,70,0.18);
   --kpi-hover: rgba(6,30,12,0.9);
   --kpi-bar-glow: var(--glow);
@@ -149,7 +149,7 @@
   --badge-degraded-bg: rgba(255,210,75,0.13);
   --badge-offline-bg: rgba(255,60,110,0.13);
   --transition: 0.22s cubic-bezier(0.4,0,0.2,1);
-  --hover-lift: translateY(-3px);
+  --hover-lift: translateY(-2px);
   --ambient: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 1  0 0 0 0 0.3  0 0 0 0.06 0"/></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');
   --app-bg: radial-gradient(140% 90% at 50% -10%, rgba(0,255,122,0.08), transparent 55%),
     radial-gradient(90% 70% at 100% 100%, rgba(44,255,157,0.04), transparent 50%),
@@ -175,13 +175,12 @@ body {
 
 /* ambient grain + CRT vignette + scanlines (dark theme) */
 body::before {
-  content: ""; position: fixed; inset: 0; z-index: 1000; pointer-events: none;
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background: var(--ambient), var(--vignette);
 }
 body::after {
-  content: ""; position: fixed; inset: 0; z-index: 1001; pointer-events: none;
+  content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
   background: var(--scanlines);
-  mix-blend-mode: multiply;
   animation: scan-drift 8s linear infinite;
 }
 @keyframes scan-drift { from { background-position: 0 0; } to { background-position: 0 6px; } }
@@ -423,12 +422,11 @@ body::after {
 /* stat tiles */
 .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
 .tile {
-  background: var(--tint); padding: 12px 10px;
+  background: var(--tint); border: 1px solid var(--line); padding: 12px 10px;
   border-radius: var(--radius-sm); text-align: center;
-  box-shadow: var(--tile-shadow);
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
-.tile:hover { background: var(--tint-strong); }
+.tile:hover { background: var(--tint-strong); border-color: var(--line-strong); }
 .tile-label { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; }
 .tile-value {
   font-size: 1.02rem; font-weight: 700; margin-top: 4px; color: var(--text);
@@ -963,7 +961,7 @@ body::after {
             </linearGradient>
           </defs>
           <polygon points="${areaPts}" fill="url(#${gid})"/>
-          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+          <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
         </svg>`;
     }
 
