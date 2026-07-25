@@ -1824,11 +1824,14 @@ body::after {
         btn.title = 'SMART probe failed: ' + (dev.error || 'unknown');
       }
       document.querySelector('.tabs').appendChild(btn);
-      // Build pane.
+      // Build pane. Append as the last child of .wrap; .fab is position:fixed
+      // and a sibling of .wrap, so insertBefore(pane, .fab) would throw a
+      // NotFoundError (fab is not a child of .wrap) and leak orphan tab
+      // buttons on every poll.
       const pane = document.createElement('section');
       pane.id = 'pane-' + id;
       pane.className = 'pane';
-      document.querySelector('.wrap').insertBefore(pane, document.querySelector('.fab'));
+      document.querySelector('.wrap').appendChild(pane);
       renderSmartPane(dev, pane);
       smartTabs.set(dev.name, btn);
       return btn;
@@ -1894,6 +1897,8 @@ body::after {
         tasks.push(caps.zfs ? fetchPools() : Promise.resolve(null));
         tasks.push(caps.arc ? fetchARC() : Promise.resolve(null));
         tasks.push(fetchSmart());
+        // fetchSmart mounts/clears its own tabs as a side effect, so its
+        // result is intentionally unused here.
         const [pools, arc] = await Promise.all(tasks);
         renderKPIs(pools, arc);
       } finally {
