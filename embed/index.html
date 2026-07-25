@@ -856,7 +856,7 @@ body::after {
     const REFRESH_MS = 5000;
     let timer = null;
     let activeTab = 'system';
-    const caps = { zfs: true, arc: true };
+    const caps = { zfs: true, arc: true, smart: false };
     const hitHistory = [];
     const missHistory = [];
     const sizeHistory = [];
@@ -1020,16 +1020,16 @@ body::after {
         </svg>`;
     }
 
-    /* ── tab switching ───────────────────────────────────────── */
-    document.querySelectorAll('.tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.hidden) return;
-        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
-        activeTab = btn.dataset.tab;
-        document.getElementById('pane-' + activeTab).classList.add('active');
-      });
+    /* ── tab switching (event delegation so dynamic SMART tabs work) ── */
+    document.querySelector('.tabs').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.tab');
+      if (!btn || btn.hidden) return;
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+      activeTab = btn.dataset.tab;
+      const pane = document.getElementById('pane-' + activeTab);
+      if (pane) pane.classList.add('active');
     });
 
     /* ── KPI summary strip ───────────────────────────────────── */
@@ -1611,7 +1611,279 @@ body::after {
       }
     }
 
-    /* ── orchestration ────────────────────────────────────────── */
+    /* ── SMART drives (dynamic per-drive tabs) ──────────────── */
+    // smartTabs tracks the dev names we've already mounted tabs/panes for so
+    // refreshAll() can reuse them instead of rebuilding on every poll.
+    const smartTabs = new Map();
+
+    function sanitizeTabId(name) {
+      return (name || '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    function deviceLabel(name) {
+      // "/dev/sda" -> "SMART /dev/sda"
+      return 'SMART ' + (name || '?');
+    }
+
+    function healthClassForSmart(details) {
+      if (!details) return 'b-offline';
+      // Failed SMART overrides everything else.
+      if (!details.smart_passed) return 'b-offline';
+      // NVMe critical warning flags real trouble even when passed is true.
+      if (details.nvme && details.nvme.critical_warning > 0) return 'b-degraded';
+      // Reallocated / pending / offline-uncorrectable sectors on ATA.
+      if (details.ata) {
+        const criticalIds = [5, 197, 198];
+        for (const a of details.ata.attributes) {
+          if (criticalIds.includes(a.id) && a.raw && a.raw.value > 0) return 'b-degraded';
+        }
+      }
+      return 'b-online';
+    }
+
+    function fmtTemp(cur, warn, crit) {
+      if (cur == null) return '—';
+      let s = cur + '°C';
+      if (crit) s += ` <span style="color:var(--dim)">/ crit ${crit}°C</span>`;
+      else if (warn) s += ` <span style="color:var(--dim)">/ warn ${warn}°C</span>`;
+      return s;
+    }
+
+    function tempColor(cur, warn, crit) {
+      if (cur == null) return 'var(--text)';
+      if (crit && cur >= crit) return 'var(--crimson)';
+      if (warn && cur >= warn) return 'var(--amber-warn)';
+      return 'var(--mint)';
+    }
+
+    function renderNVMeCard(details) {
+      const n = details.nvme;
+      if (!n) return '';
+      const sparePct = n.available_spare_threshold
+        ? Math.min((n.available_spare / 100) * 100, 100) : 100;
+      const endurancePct = Math.min(n.percentage_used, 100);
+      const enduranceColor = endurancePct > 80 ? '#ff5d5d'
+        : endurancePct > 60 ? '#ffc24b' : '#5ee3a0';
+      const warnFlags = n.critical_warning > 0
+        ? `<span class="badge b-degraded">critical warning 0x${n.critical_warning.toString(16)}</span>`
+        : `<span class="badge b-online">healthy</span>`;
+      return `
+        <div class="card" data-accent="pool">
+          <div class="card-head"><span class="card-title">NVMe Health</span>${warnFlags}</div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Endurance Used</div><div class="tile-value ${endurancePct > 80 ? 'crimson' : endurancePct > 60 ? 'amber' : 'mint'}">${endurancePct}%</div></div>
+            <div class="tile"><div class="tile-label">Spare</div><div class="tile-value cyan">${n.available_spare}% / ${n.available_spare_threshold}%</div></div>
+            <div class="tile"><div class="tile-label">Media Errors</div><div class="tile-value ${n.media_errors > 0 ? 'crimson' : 'mint'}">${fmtNum(n.media_errors)}</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Endurance used</span><span>${endurancePct}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${endurancePct}%;background:linear-gradient(90deg,${enduranceColor},${enduranceColor})"></div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>Available spare vs threshold</span><span>${n.available_spare}%</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${sparePct}%;background:linear-gradient(90deg,#5fd6e8,#5ee3a0)"></div></div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Data Read</div><div class="tile-value violet">${fmtNum(n.data_units_read * 512 * 1000)}</div></div>
+            <div class="tile"><div class="tile-label">Data Written</div><div class="tile-value violet">${fmtNum(n.data_units_written * 512 * 1000)}</div></div>
+            <div class="tile"><div class="tile-label">Host Reads</div><div class="tile-value cyan">${fmtNum(n.host_reads)}</div></div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Host Writes</div><div class="tile-value cyan">${fmtNum(n.host_writes)}</div></div>
+            <div class="tile"><div class="tile-label">Unsafe Shutdowns</div><div class="tile-value ${n.unsafe_shutdowns > 0 ? 'amber' : 'mint'}">${fmtNum(n.unsafe_shutdowns)}</div></div>
+            <div class="tile"><div class="tile-label">Err Log Entries</div><div class="tile-value ${n.num_err_log_entries > 0 ? 'amber' : 'mint'}">${fmtNum(n.num_err_log_entries)}</div></div>
+          </div>
+          ${n.temperature_sensors && n.temperature_sensors.length ? `
+          <div class="muted-note">temp sensors: ${n.temperature_sensors.map(t => t + '°C').join(' · ')}</div>` : ''}
+        </div>`;
+    }
+
+    // ATA attributes the dashboard surfaces as primary health indicators. IDs
+    // match smartctl's stable attribute numbering.
+    const ATA_HIGHLIGHT_IDS = [5, 9, 12, 187, 188, 194, 197, 198, 199, 240, 241, 242];
+
+    function renderATACard(details) {
+      const ata = details.ata;
+      if (!ata) return '';
+      const attrById = {};
+      for (const a of ata.attributes) attrById[a.id] = a;
+      const rows = ATA_HIGHLIGHT_IDS
+        .map(id => attrById[id])
+        .filter(Boolean)
+        .map(a => {
+          const flagged = a.when_failed && a.when_failed !== '-';
+          const rawNonZero = a.raw && a.raw.value > 0;
+          const isCriticalSector = [5, 197, 198].includes(a.id) && rawNonZero;
+          const valColor = flagged || isCriticalSector ? 'crimson'
+            : (a.id === 194) ? 'cyan'
+            : 'text';
+          return `
+            <div class="vdev">
+              <span class="vdev-name">${escapeHTML(a.name)} <span style="opacity:0.5;font-weight:400">#${a.id}</span></span>
+              <div class="vdev-info">
+                <span style="color:var(--dim);font-size:0.66rem">val ${a.value} / worst ${a.worst} / thresh ${a.thresh}</span>
+                <span class="tile-value ${valColor}" style="font-size:0.78rem">${escapeHTML(a.raw && a.raw.string ? a.raw.string : String(a.raw && a.raw.value || 0))}</span>
+              </div>
+            </div>`;
+        }).join('');
+      const selfBadge = ata.self_test && ata.self_test.passed
+        ? `<span class="badge b-online">self-test ok</span>`
+        : `<span class="badge b-offline">self-test fail</span>`;
+      return `
+        <div class="card" data-accent="pool">
+          <div class="card-head"><span class="card-title">ATA SMART Attributes</span>${selfBadge}</div>
+          <div class="vdevs">
+            <div class="vdevs-title">key attributes (value / worst / threshold · raw)</div>
+            ${rows || '<div class="muted-note">no attributes reported</div>'}
+          </div>
+        </div>`;
+    }
+
+    function renderSmartPane(dev, paneEl) {
+      const d = dev.details;
+      if (!d) {
+        paneEl.innerHTML = `<div class="state"><div class="err">⚠ SMART probe failed<div class="err-detail">${escapeHTML(dev.error || 'unknown error')}</div></div></div>`;
+        return;
+      }
+      const hc = healthClassForSmart(d);
+      const passedBadge = d.smart_passed
+        ? `<span class="badge ${hc}">PASSED</span>`
+        : `<span class="badge b-offline">FAILED</span>`;
+      const isRotating = d.rotation_rate > 0;
+      const driveKind = d.protocol === 'NVMe' ? 'NVMe SSD'
+        : (isRotating ? `HDD · ${d.rotation_rate} rpm` : 'SATA SSD');
+      const tempC = tempColor(d.temperature_current, d.temperature_warning, d.temperature_critical);
+      const tempPct = d.temperature_critical
+        ? Math.min((d.temperature_current / d.temperature_critical) * 100, 100) : 0;
+
+      paneEl.innerHTML = `
+        <div class="card" style="grid-column:1 / -1">
+          <div class="card-head"><span class="card-title">${escapeHTML(dev.name)} · ${escapeHTML(d.model_name || 'unknown')}</span>${passedBadge}</div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan" style="font-size:0.78rem">${escapeHTML(d.model_family || d.model_name || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Serial</div><div class="tile-value violet" style="font-size:0.78rem">${escapeHTML(d.serial_number || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Firmware</div><div class="tile-value amber">${escapeHTML(d.firmware_version || '—')}</div></div>
+            <div class="tile"><div class="tile-label">Capacity</div><div class="tile-value cyan">${fmtBytes(d.capacity_bytes)}</div></div>
+            <div class="tile"><div class="tile-label">Kind</div><div class="tile-value violet">${escapeHTML(driveKind)}</div></div>
+            <div class="tile"><div class="tile-label">Transport</div><div class="tile-value amber">${escapeHTML(d.protocol || '—')} · ${escapeHTML(d.device_type || '—')}</div></div>
+            ${d.form_factor ? `<div class="tile"><div class="tile-label">Form Factor</div><div class="tile-value violet">${escapeHTML(d.form_factor)}</div></div>` : ''}
+            <div class="tile"><div class="tile-label">Power-On Hours</div><div class="tile-value mint">${fmtNum(d.power_on_hours)}</div></div>
+            <div class="tile"><div class="tile-label">Power Cycles</div><div class="tile-value mint">${fmtNum(d.power_cycle_count)}</div></div>
+          </div>
+        </div>
+
+        <div class="card" data-accent="arc">
+          <div class="card-head"><span class="card-title">Temperature</span>
+            <span class="badge ${d.temperature_critical && d.temperature_current >= d.temperature_critical ? 'b-offline' : d.temperature_warning && d.temperature_current >= d.temperature_warning ? 'b-degraded' : 'b-online'}">${d.temperature_current != null ? d.temperature_current + '°C' : '—'}</span>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="tile-label">Current</div><div class="tile-value ${d.temperature_critical && d.temperature_current >= d.temperature_critical ? 'crimson' : d.temperature_warning && d.temperature_current >= d.temperature_warning ? 'amber' : 'mint'}" style="font-size:1.3rem">${d.temperature_current != null ? d.temperature_current + '°' : '—'}</div></div>
+            <div class="tile"><div class="tile-label">Warn Limit</div><div class="tile-value amber">${d.temperature_warning || '—'}°</div></div>
+            <div class="tile"><div class="tile-label">Crit Limit</div><div class="tile-value crimson">${d.temperature_critical || '—'}°</div></div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-head"><span>current vs critical</span><span>${d.temperature_current != null ? d.temperature_current + '°C' : '—'}</span></div>
+            <div class="bar"><div class="bar-fill" style="width:${tempPct}%;background:linear-gradient(90deg,${tempC},${tempC})"></div></div>
+          </div>
+          <div class="muted-note">color reflects current temperature vs. published limits</div>
+        </div>
+
+        ${d.nvme ? renderNVMeCard(d) : ''}
+        ${d.ata ? renderATACard(d) : ''}
+
+        ${(!d.nvme && !d.ata) ? `
+        <div class="card" data-accent="pool">
+          <div class="card-head"><span class="card-title">Health Summary</span></div>
+          <div class="state" style="padding:30px 10px">no transport-specific health log available for this device</div>
+          <div class="muted-note">SCSI/libata devices may not expose SMART attributes</div>
+        </div>` : ''}
+      `;
+    }
+
+    function ensureSmartTab(dev) {
+      const id = 'smart-' + sanitizeTabId(dev.name);
+      let btn = smartTabs.get(dev.name);
+      if (btn) {
+        // refresh pane contents in place
+        const pane = document.getElementById('pane-' + id);
+        if (pane) renderSmartPane(dev, pane);
+        return btn;
+      }
+      // Build tab button.
+      btn = document.createElement('button');
+      btn.className = 'tab';
+      btn.dataset.tab = id;
+      btn.setAttribute('role', 'tab');
+      const hc = healthClassForSmart(dev.details);
+      const dot = dev.details
+        ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;background:${hc === 'b-online' ? 'var(--mint)' : hc === 'b-degraded' ? 'var(--amber-warn)' : 'var(--crimson)'};box-shadow:0 0 6px currentColor"></span>`
+        : '';
+      btn.innerHTML = dot + escapeHTML(deviceLabel(dev.name));
+      if (!dev.details) {
+        btn.style.opacity = '0.55';
+        btn.title = 'SMART probe failed: ' + (dev.error || 'unknown');
+      }
+      document.querySelector('.tabs').appendChild(btn);
+      // Build pane.
+      const pane = document.createElement('section');
+      pane.id = 'pane-' + id;
+      pane.className = 'pane';
+      document.querySelector('.wrap').insertBefore(pane, document.querySelector('.fab'));
+      renderSmartPane(dev, pane);
+      smartTabs.set(dev.name, btn);
+      return btn;
+    }
+
+    function clearSmartTabs() {
+      for (const [name, btn] of smartTabs) {
+        if (btn) btn.remove();
+        const pane = document.getElementById('pane-' + 'smart-' + sanitizeTabId(name));
+        if (pane) pane.remove();
+      }
+      smartTabs.clear();
+      if (activeTab && activeTab.startsWith('smart-')) {
+        document.querySelector('.tab[data-tab="system"]').click();
+      }
+    }
+
+    async function fetchSmart() {
+      try {
+        const res = await fetch('/api/smart');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        applySmartCap(data);
+        if (!caps.smart || !data.devices || data.devices.length === 0) {
+          clearSmartTabs();
+          return data;
+        }
+        // Mount a tab per discovered drive (reuse existing tabs/panes).
+        const seen = new Set();
+        for (const dev of data.devices) {
+          seen.add(dev.name);
+          ensureSmartTab(dev);
+        }
+        // Remove tabs for drives that disappeared between scans.
+        for (const [name, btn] of [...smartTabs]) {
+          if (!seen.has(name)) {
+            if (btn) btn.remove();
+            const pane = document.getElementById('pane-' + 'smart-' + sanitizeTabId(name));
+            if (pane) pane.remove();
+            smartTabs.delete(name);
+          }
+        }
+        return data;
+      } catch (err) {
+        applySmartCap({ smartctl_available: false });
+        clearSmartTabs();
+        return null;
+      }
+    }
+
+    function applySmartCap(report) {
+      caps.smart = !!(report && report.smartctl_available && report.devices && report.devices.length);
+    }
+
+
     async function refreshAll() {
       lastRefresh = Date.now();
       const fab = document.getElementById('fab');
@@ -1621,6 +1893,7 @@ body::after {
         const tasks = [];
         tasks.push(caps.zfs ? fetchPools() : Promise.resolve(null));
         tasks.push(caps.arc ? fetchARC() : Promise.resolve(null));
+        tasks.push(fetchSmart());
         const [pools, arc] = await Promise.all(tasks);
         renderKPIs(pools, arc);
       } finally {

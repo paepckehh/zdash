@@ -30,6 +30,7 @@ func main() {
 	mux.HandleFunc("/api/zpool", zdash.HandleZPoolAPI)
 	mux.HandleFunc("/api/arc", zdash.HandleARCAPI)
 	mux.HandleFunc("/api/sysinfo", zdash.HandleSysInfoAPI)
+	mux.HandleFunc("/api/smart", zdash.HandleSmartAPI)
 
 	srv := &http.Server{
 		Addr:         addr,

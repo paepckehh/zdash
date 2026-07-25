@@ -1,0 +1,56 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 0 },
+  "device": { "name": "/dev/sda", "info_name": "/dev/sda [SAT]", "type": "sat", "protocol": "ATA" },
+  "model_family": "Seagate IronWolf",
+  "model_name": "ST4000VN008-2DR166",
+  "serial_number": "ZM40XVH0",
+  "firmware_version": "SC60",
+  "user_capacity": { "blocks": 7814037168, "bytes": 4000787030016 },
+  "logical_block_size": 512,
+  "physical_block_size": 4096,
+  "rotation_rate": 5980,
+  "form_factor": { "ata_value": 2, "name": "3.5 inches" },
+  "smart_support": { "available": true, "enabled": true },
+  "smart_status": { "passed": true },
+  "ata_smart_attributes": {
+    "revision": 10,
+    "table": [
+      { "id": 5, "name": "Reallocated_Sector_Ct", "value": 100, "worst": 100, "thresh": 10, "when_failed": "",
+        "raw": { "value": 0, "string": "0" } },
+      { "id": 9, "name": "Power_On_Hours", "value": 49, "worst": 49, "thresh": 0, "when_failed": "",
+        "raw": { "value": 101661875941808, "string": "45488 (92 118 0)" } },
+      { "id": 12, "name": "Power_Cycle_Count", "value": 98, "worst": 98, "thresh": 20, "when_failed": "",
+        "raw": { "value": 2916, "string": "2916" } },
+      { "id": 187, "name": "Reported_Uncorrect", "value": 100, "worst": 100, "thresh": 0, "when_failed": "",
+        "raw": { "value": 0, "string": "0" } },
+      { "id": 188, "name": "Command_Timeout", "value": 100, "worst": 100, "thresh": 0, "when_failed": "",
+        "raw": { "value": 0, "string": "0 0 0" } },
+      { "id": 194, "name": "Temperature_Celsius", "value": 28, "worst": 40, "thresh": 0, "when_failed": "",
+        "raw": { "value": 68719476764, "string": "28 (0 16 0 0 0)" } },
+      { "id": 197, "name": "Current_Pending_Sector", "value": 100, "worst": 100, "thresh": 0, "when_failed": "",
+        "raw": { "value": 0, "string": "0" } },
+      { "id": 198, "name": "Offline_Uncorrectable", "value": 100, "worst": 100, "thresh": 0, "when_failed": "",
+        "raw": { "value": 0, "string": "0" } },
+      { "id": 199, "name": "UDMA_CRC_Error_Count", "value": 200, "worst": 200, "thresh": 0, "when_failed": "",
+        "raw": { "value": 0, "string": "0" } },
+      { "id": 241, "name": "Total_LBAs_Written", "value": 100, "worst": 253, "thresh": 0, "when_failed": "",
+        "raw": { "value": 360811041546, "string": "360811041546" } },
+      { "id": 242, "name": "Total_LBAs_Read", "value": 100, "worst": 253, "thresh": 0, "when_failed": "",
+        "raw": { "value": 242936298083, "string": "242936298083" } }
+    ]
+  },
+  "spare_available": { "current_percent": 100, "threshold_percent": 10 },
+  "power_on_time": { "hours": 45488 },
+  "power_cycle_count": 2916,
+  "temperature": { "current": 28, "power_cycle_min": 26, "power_cycle_max": 30,
+    "lifetime_min": 16, "lifetime_max": 32, "op_limit_max": 70 },
+  "ata_smart_self_test_log": {
+    "extended": {
+      "revision": 1, "sectors": 1, "count": 1,
+      "table": [ { "type": { "value": 1, "string": "Short offline" },
+        "status": { "value": 0, "string": "Completed without error", "passed": true },
+        "lifetime_hours": 42286 } ]
+    }
+  }
+}
