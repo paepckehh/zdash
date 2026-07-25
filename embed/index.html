@@ -196,6 +196,7 @@ body::after {
   opacity: 0.92;
 }
 :root[data-theme="dark"] .brand-host { text-shadow: var(--glow); }
+:root[data-theme="light"] .brand .cursor { display: none; }
 
 /* ── Hero ─────────────────────────────────────────────────── */
 .hero { margin-bottom: 26px; }
@@ -307,25 +308,33 @@ body::after {
 
 /* ── Tabs ─────────────────────────────────────────────────── */
 .tabs {
-  display: flex; gap: 4px; margin: 18px 0 22px;
-  border-bottom: 2px solid var(--line); width: 100%;
-  overflow-x: auto; padding-bottom: 2px; position: relative;
+  display: flex; gap: 8px; margin: 18px 0 22px;
+  width: 100%; overflow-x: auto; padding: 2px; position: relative;
 }
 .tab {
-  border: none; background: transparent; color: var(--muted);
-  padding: 10px 20px 12px; cursor: pointer;
-  font-family: var(--mono); font-size: 0.76rem; font-weight: 600;
+  border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--muted); cursor: pointer;
+  padding: 9px 18px 10px;
+  font-family: var(--mono); font-size: 0.76rem; font-weight: 700;
   letter-spacing: 0.16em; text-transform: uppercase;
-  position: relative; transition: color var(--transition); white-space: nowrap;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  position: relative; transition: all var(--transition); white-space: nowrap;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
 }
 .tab::before { content: ""; opacity: 0.4; }
 :root[data-theme="dark"] .tab::before { content: "> "; opacity: 0.5; color: var(--phosphor); }
 :root[data-theme="light"] .tab::before { content: ""; }
-.tab:hover { color: var(--text); background: var(--tab-active-bg); }
-.tab.active { color: var(--phosphor-bright); text-shadow: var(--glow); }
+.tab:hover {
+  color: var(--text); background: var(--panel-hover);
+  border-color: var(--phosphor); transform: var(--hover-lift);
+  box-shadow: var(--shadow-lg);
+}
+.tab.active {
+  color: var(--phosphor-bright); text-shadow: var(--glow);
+  background: var(--tab-active-bg); border-color: var(--phosphor);
+}
 .tab.active::after {
-  content: ""; position: absolute; bottom: -2px; left: 8px; right: 8px;
+  content: ""; position: absolute; bottom: 3px; left: 10px; right: 10px;
   height: 2px; background: var(--tab-indicator); border-radius: 2px;
   box-shadow: var(--kpi-bar-glow);
 }
