@@ -151,7 +151,7 @@ curl -s http://localhost:8080/api/zpool | jq '.pools | keys'
    ▼                                                                       ▼
 ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐
 │  HandleIndex    │  │ HandleZPoolAPI   │  │  HandleARCAPI    │  │ HandleSysInfo  │
-│  embed/index.html│ │  zpool -v --json  │  │  /proc/.../arcstats│  │ /proc + /sys  │
+│  embed/index.htm│  │  zpool -v --json │  │  /proc/./arcstats│  │ /proc + /sys   │
 └─────────────────┘  └──────────────────┘  └──────────────────┘  └────────────────┘
         ▲                     │                     │                     │
         │                     ▼                     ▼                     ▼
