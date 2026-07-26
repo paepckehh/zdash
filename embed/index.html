@@ -654,7 +654,7 @@ body::after {
 .ff-bar .bar { height: 6px; }
 
 /* ── ARC live stream ─────────────────────────────────────── */
-.stream-card { grid-column: 1 / -1; }
+.stream-card { margin-bottom: 12px; }
 .stream {
   display: flex; gap: 2px; height: 120px; align-items: flex-end;
   background: var(--spark-bg); border: 1px solid var(--line);
@@ -666,10 +666,10 @@ body::after {
 }
 .stream-cell {
   width: 100%; border-radius: 1px;
-  animation: stream-rise 0.4s ease;
 }
 .stream-cell.hit { background: var(--mint); box-shadow: 0 0 5px var(--mint); }
 .stream-cell.miss { background: var(--crimson); box-shadow: 0 0 5px var(--crimson); }
+.stream-rise-new { animation: stream-rise 0.4s ease; }
 @keyframes stream-rise { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
 .stream-legend {
   display: flex; gap: 18px; margin-top: 10px; font-size: 0.7rem;
@@ -754,6 +754,19 @@ body::after {
     </section>
 
     <section id="pane-arc" class="pane">
+      <!-- live traffic stream lives outside arc-grid so it survives the
+           per-poll grid rebuild; its columns are updated in place. -->
+      <div class="card stream-card" data-accent="arc" id="arc-stream">
+        <div class="card-head"><span class="card-title">live traffic</span>
+          <span class="badge b-online" id="arc-stream-badge">— hit</span>
+        </div>
+        <div class="stream"></div>
+        <div class="stream-legend">
+          <span class="lg hit">hits / interval</span>
+          <span class="lg miss">misses / interval</span>
+          <span id="arc-stream-count" style="margin-left:auto;color:var(--dim)">0 samples</span>
+        </div>
+      </div>
       <div id="arc-grid" class="grid"></div>
       <div id="arc-state" class="state">
         <div class="spinner"></div>
@@ -863,9 +876,13 @@ body::after {
     const HIST_LEN = 60;
 
     // Live ARC traffic stream: array of buckets, each {h, m} deltas.
+    // The stream card lives outside the rebuilt arc-grid, so its columns
+    // persist across polls and only the newest bar animates.
     let prevHits = null, prevMisses = null;
     const streamBuckets = [];
     const STREAM_LEN = 48;
+    let streamCols = null;      // cached .stream-col elements (STREAM_LEN)
+    let streamScaleRef = 1;     // smoothed max for stable bar heights
 
     /* ── capability-driven tab suppression ────────────────────── */
     function applyCaps(c) {
@@ -1336,33 +1353,105 @@ body::after {
     }
 
     /* ── ARC rendering + live stream ─────────────────────────── */
+    // ZFS ARC hits/misses are cumulative monotonic counters. They reset to
+    // 0 on pool export/import, module reload, or system reboot. When a
+    // reset is detected (current < previous), rebase the previous baseline
+    // to the current reading and emit a zero-delta bucket instead of
+    // clamping a giant negative — otherwise the stream goes flat forever.
     function pushStreamBucket(arc) {
-      const dh = prevHits != null ? Math.max(0, arc.hits - prevHits) : 0;
-      const dm = prevMisses != null ? Math.max(0, arc.misses - prevMisses) : 0;
-      prevHits = arc.hits;
-      prevMisses = arc.misses;
+      const h = Number(arc.hits) || 0;
+      const m = Number(arc.misses) || 0;
+      let dh = 0, dm = 0;
+      if (prevHits !== null) {
+        if (h < prevHits || m < prevMisses) {
+          // counter rolled over / was reset — rebase, no delta this tick.
+          prevHits = h;
+          prevMisses = m;
+        } else {
+          dh = h - prevHits;
+          dm = m - prevMisses;
+          prevHits = h;
+          prevMisses = m;
+        }
+      } else {
+        prevHits = h;
+        prevMisses = m;
+      }
       streamBuckets.push({ h: dh, m: dm });
       if (streamBuckets.length > STREAM_LEN) streamBuckets.shift();
     }
 
-    function renderStream() {
+    // Build the STREAM_LEN columns once. They are reused for the life of
+    // the page so per-poll updates only tweak heights + the newest bar's
+    // animation class, never a full DOM teardown.
+    function initStream() {
       const el = document.getElementById('arc-stream');
       if (!el) return;
-      const max = Math.max(1, ...streamBuckets.map(b => Math.max(b.h, b.m)));
+      const stream = el.querySelector('.stream');
+      if (!stream) return;
       let cols = '';
-      for (const b of streamBuckets) {
-        const hH = (b.h / max) * 100;
-        const mH = (b.m / max) * 100;
+      for (let i = 0; i < STREAM_LEN; i++) {
         cols += `<div class="stream-col">
-          <div class="stream-cell miss" style="height:${mH}%"></div>
-          <div class="stream-cell hit" style="height:${hH}%"></div>
+          <div class="stream-cell miss"></div>
+          <div class="stream-cell hit"></div>
         </div>`;
       }
-      // fill empty columns so the stream looks continuous on first load
-      for (let i = streamBuckets.length; i < STREAM_LEN; i++) {
-        cols += `<div class="stream-col"></div>`;
+      stream.innerHTML = cols;
+      streamCols = Array.from(stream.children);
+    }
+
+    function renderStream(hitPct) {
+      const card = document.getElementById('arc-stream');
+      if (!card || !streamCols) return;
+      const badge = document.getElementById('arc-stream-badge');
+      if (badge && typeof hitPct === 'number') {
+        badge.textContent = (hitPct >= 0 ? hitPct.toFixed(2) : '—') + '% hit';
+        badge.className = 'badge ' +
+          (hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline');
       }
-      el.querySelector('.stream').innerHTML = cols;
+      const countEl = document.getElementById('arc-stream-count');
+      if (countEl) countEl.textContent = streamBuckets.length + ' samples';
+
+      // Smoothed scale: follow spikes upward instantly, decay downward
+      // slowly so a single quiet tick doesn't collapse every bar.
+      const observed = Math.max(1, ...streamBuckets.map(b => Math.max(b.h, b.m)));
+      if (observed > streamScaleRef) {
+        streamScaleRef = observed;
+      } else {
+        streamScaleRef = Math.max(observed, streamScaleRef * 0.92);
+      }
+      const max = Math.max(1, streamScaleRef);
+
+      // Columns are right-aligned to "now": the newest bucket maps to the
+      // last column. Older buckets fill in behind it so the stream reads
+      // left→right as old→new and the live edge stays pinned to the right.
+      const n = streamBuckets.length;
+      for (let i = 0; i < STREAM_LEN; i++) {
+        const col = streamCols[i];
+        const bucketIdx = n - STREAM_LEN + i;
+        const b = bucketIdx >= 0 ? streamBuckets[bucketIdx] : null;
+        const hit = col.querySelector('.stream-cell.hit');
+        const miss = col.querySelector('.stream-cell.miss');
+        if (!b) {
+          hit.style.height = '0%';
+          miss.style.height = '0%';
+          continue;
+        }
+        const hH = (b.h / max) * 100;
+        const mH = (b.m / max) * 100;
+        hit.style.height = hH.toFixed(2) + '%';
+        miss.style.height = mH.toFixed(2) + '%';
+        // Re-trigger the rise animation only on the freshly-pushed bucket
+        // (the last column). Older bars keep their state — no flicker.
+        if (i === STREAM_LEN - 1) {
+          hit.classList.remove('stream-rise-new');
+          miss.classList.remove('stream-rise-new');
+          // force reflow so the re-add restarts the animation
+          void hit.offsetWidth;
+          hit.classList.add('stream-rise-new');
+          miss.classList.add('stream-rise-new');
+        }
+      }
     }
 
     function renderARC(arc) {
@@ -1398,19 +1487,6 @@ body::after {
       pushStreamBucket(arc);
 
       grid.innerHTML = `
-        <!-- live hit/miss traffic stream -->
-        <div class="card stream-card" data-accent="arc" id="arc-stream">
-          <div class="card-head"><span class="card-title">live traffic</span>
-            <span class="badge ${hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline'}">${hitPct.toFixed(2)}% hit</span>
-          </div>
-          <div class="stream"></div>
-          <div class="stream-legend">
-            <span class="lg hit">hits / interval</span>
-            <span class="lg miss">misses / interval</span>
-            <span style="margin-left:auto;color:var(--dim)">last ${streamBuckets.length} samples</span>
-          </div>
-        </div>
-
         <!-- Hit ratio donut card -->
         <div class="card" data-accent="arc">
           <div class="card-head"><span class="card-title">Cache Hit Ratio</span>
@@ -1592,7 +1668,7 @@ body::after {
           <div class="muted-note">attach a cache vdev to enable</div>
         </div>`}
       `;
-      renderStream();
+      renderStream(hitPct);
     }
 
     async function fetchARC() {
@@ -1889,6 +1965,7 @@ body::after {
       }
     }
 
+    initStream();
     refreshAll();
     timer = setInterval(refreshAll, REFRESH_MS);
 
