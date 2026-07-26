@@ -44,7 +44,23 @@ One binary. Zero dependencies. Real-time pool, ARC, and host metrics — rendere
 
 ## 📸 Screenshots
 
-![zDash Dashboard Preview](https://paepcke.de/zdash/screenshot.png)
+<details open>
+<summary><b>☀️ Light Mode</b></summary>
+<br>
+
+<!-- TODO: replace with light-mode screenshot -->
+![zDash Dashboard — Light Mode](https://paepcke.de/zdash/screenshot.png)
+
+</details>
+
+<details open>
+<summary><b>🌙 Dark Mode</b></summary>
+<br>
+
+<!-- TODO: replace with dark-mode screenshot -->
+![zDash Dashboard — Dark Mode](https://paepcke.de/zdash/screenshot.png)
+
+</details>
 
 </div>
 
