@@ -276,137 +276,6 @@ body::after {
 .theme-toggle:hover { background: var(--glass-hover); border-color: var(--line-strong); transform: translateY(-1px); box-shadow: var(--glow); }
 .theme-toggle svg { width: 19px; height: 19px; display: block; }
 
-/* ── HERO / landing ───────────────────────────────────────── */
-.hero { padding: 52px 48px 44px; border-radius: calc(var(--radius) + 6px); margin-bottom: 32px; overflow: hidden; }
-.hero::after { /* faint radial wash in the corner */
-  content: ""; position: absolute; top: -40%; right: -10%; width: 70%; height: 130%;
-  background: radial-gradient(60% 60% at 70% 30%, rgba(14,165,233,0.10), transparent 70%);
-  pointer-events: none;
-}
-.hero-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 44px; align-items: center; position: relative; z-index: 1; }
-.hero-eyebrow {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.18em;
-  text-transform: uppercase; color: var(--muted); font-weight: 600;
-  padding: 7px 14px; border-radius: var(--radius-pill);
-  background: var(--glass-2); border: 1px solid var(--line); margin-bottom: 20px;
-}
-.eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: var(--glow-mint); }
-.hero-title {
-  font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em;
-  line-height: 1.06; color: var(--text);
-}
-.grad-text {
-  background: var(--grad-accent);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-}
-.hero-sub { margin-top: 18px; font-size: 1.02rem; line-height: 1.65; color: var(--muted); max-width: 52ch; font-weight: 400; }
-.hero-cta { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
-.btn {
-  appearance: none; cursor: pointer; text-decoration: none;
-  display: inline-flex; align-items: center; gap: 9px;
-  font-family: var(--font-ui); font-weight: 600; font-size: 0.92rem;
-  padding: 13px 24px; border-radius: var(--radius-pill);
-  transition: all var(--transition); border: 1px solid transparent;
-}
-.btn svg { width: 17px; height: 17px; }
-.btn-primary { color: var(--on-accent); background: var(--grad-accent); box-shadow: var(--glow); }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px var(--phosphor), var(--glow), var(--shadow-lg); }
-.btn-ghost { color: var(--text); background: var(--glass-2); border-color: var(--line); }
-.btn-ghost:hover { background: var(--glass-hover); border-color: var(--line-strong); transform: translateY(-2px); }
-.hero-trust {
-  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px;
-  font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--dim);
-}
-.hero-trust span { padding: 5px 11px; border: 1px dashed var(--line); border-radius: var(--radius-sm); }
-
-/* hero console window */
-.hero-console { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); background: var(--glass-2); box-shadow: var(--shadow-lg); }
-.console-bar {
-  display: flex; align-items: center; gap: 7px; padding: 11px 16px;
-  border-bottom: 1px solid var(--line); background: var(--tile-bg);
-}
-.console-bar .dot { width: 10px; height: 10px; border-radius: 50%; opacity: 0.9; }
-.console-bar .d1 { background: #f87171; } .console-bar .d2 { background: #fbbf24; } .console-bar .d3 { background: #34d399; }
-.console-title { margin-left: 10px; font-family: var(--font-mono); font-size: 0.7rem; color: var(--dim); letter-spacing: 0.08em; }
-.console-body { padding: 18px 20px; font-family: var(--font-mono); font-size: 0.8rem; line-height: 2.05; }
-.con-line { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.con-prompt { color: var(--phosphor); font-weight: 700; margin-right: 8px; }
-.con-ok { color: var(--mint); }
-.con-cursor { color: var(--phosphor); animation: blink 1.1s steps(2) infinite; }
-@keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
-
-/* hero live stats */
-.hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 36px; position: relative; z-index: 1; }
-.hstat { border-radius: var(--radius-sm); padding: 18px 20px; background: var(--glass-2); border: 1px solid var(--line); }
-.hs-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--muted); font-weight: 700; }
-.hs-value { font-size: 1.7rem; font-weight: 800; margin-top: 5px; font-variant-numeric: tabular-nums; color: var(--phosphor-bright); letter-spacing: -0.01em; font-family: var(--font-mono); }
-.hs-sub { font-size: 0.72rem; color: var(--dim); margin-top: 3px; }
-
-/* ── landing sections ─────────────────────────────────────── */
-.section-head { text-align: center; max-width: 640px; margin: 0 auto 40px; }
-.section-eyebrow {
-  font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.22em;
-  text-transform: uppercase; color: var(--phosphor); font-weight: 600;
-}
-.section-title { font-size: clamp(1.6rem, 3.4vw, 2.3rem); font-weight: 800; letter-spacing: -0.02em; margin-top: 10px; }
-.section-sub { color: var(--muted); margin-top: 12px; font-size: 0.98rem; }
-
-.feature-strip {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-  padding: 18px 22px; border-radius: var(--radius); margin-bottom: 64px;
-}
-.fs-item { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; font-weight: 600; color: var(--muted); justify-content: center; }
-.fs-item svg { width: 16px; height: 16px; color: var(--mint); flex-shrink: 0; }
-
-.features { margin-bottom: 72px; }
-.feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-.feat { padding: 28px 26px; border-radius: var(--radius); }
-.feat-icon {
-  width: 46px; height: 46px; border-radius: 14px; margin-bottom: 18px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--tile-bg); border: 1px solid var(--line); color: var(--phosphor);
-  box-shadow: var(--glow);
-}
-.feat-icon svg { width: 23px; height: 23px; }
-.feat h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em; }
-.feat p { font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
-
-.how { margin-bottom: 72px; }
-.how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
-.how-step { padding: 26px 26px 28px; border-radius: var(--radius); }
-.how-num {
-  width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-mono); font-weight: 700; font-size: 0.9rem; color: var(--on-accent);
-  background: var(--grad-accent); box-shadow: var(--glow); margin-bottom: 16px;
-}
-.how-step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
-.how-step p { font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
-.how-step code {
-  display: inline-block; margin-top: 12px; font-family: var(--font-mono); font-size: 0.74rem;
-  padding: 6px 10px; border-radius: var(--radius-sm); background: var(--tile-bg);
-  border: 1px solid var(--line); color: var(--phosphor-bright); word-break: break-all;
-}
-
-.security { margin-bottom: 72px; }
-.sec-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 18px; align-items: stretch; }
-.sec-panel, .sec-checks { padding: 32px 30px; border-radius: var(--radius); }
-.sec-panel .hero-eyebrow { margin-bottom: 16px; }
-.sec-panel h3 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 12px; }
-.sec-panel p { color: var(--muted); font-size: 0.92rem; line-height: 1.65; }
-.sec-checks { display: flex; flex-direction: column; gap: 14px; }
-.sec-check { display: flex; gap: 12px; align-items: flex-start; font-size: 0.9rem; }
-.sec-check svg { width: 19px; height: 19px; color: var(--mint); flex-shrink: 0; margin-top: 2px; filter: drop-shadow(var(--glow-mint)); }
-.sec-check b { font-weight: 700; }
-.sec-check .sc-sub { display: block; color: var(--muted); font-size: 0.8rem; margin-top: 2px; }
-
-.cta { text-align: center; padding: 60px 40px; border-radius: calc(var(--radius) + 6px); margin-bottom: 48px; overflow: hidden; }
-.cta h2 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); font-weight: 800; letter-spacing: -0.02em; }
-.cta p { color: var(--muted); margin: 14px auto 28px; max-width: 46ch; }
-.cta .hero-cta { justify-content: center; margin-top: 0; }
-
 /* ── dashboard shell ──────────────────────────────────────── */
 .dash-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -605,11 +474,12 @@ body::after {
 /* fastfetch-style system summary */
 .fastfetch { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; }
 .fastfetch-logo {
-  flex-shrink: 0; width: 124px; padding: 14px;
+  flex-shrink: 0; width: 124px; height: 124px; padding: 10px;
   background: var(--tile-bg); border: 1px solid var(--line);
   border-radius: var(--radius); position: relative;
+  display: flex; align-items: center; justify-content: center;
 }
-.fastfetch-logo pre { font-family: var(--font-mono); font-size: 0.52rem; line-height: 1.08; color: var(--phosphor); text-shadow: var(--glow); white-space: pre; margin: 0; }
+.fastfetch-logo .distro-logo { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18)); }
 .fastfetch-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
 .ff-title { font-size: 1.12rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px; color: var(--phosphor-bright); }
 .ff-title .ff-host { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
@@ -619,6 +489,9 @@ body::after {
 .ff-val { color: var(--text); font-size: 0.78rem; word-break: break-word; }
 .ff-bar { flex: 1; max-width: 200px; margin-left: 4px; }
 .ff-bar .bar { height: 6px; }
+.ff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 32px; }
+.ff-col { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+@media (max-width: 720px) { .ff-cols { grid-template-columns: 1fr; gap: 0; } }
 
 /* ARC live stream */
 .stream-card { margin-bottom: 18px; }
@@ -659,26 +532,17 @@ body::after {
 
 /* ── responsive ───────────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .hero-grid { grid-template-columns: 1fr; gap: 30px; }
-  .hero { padding: 38px 28px 32px; }
-  .feat-grid, .how-grid { grid-template-columns: repeat(2, 1fr); }
-  .sec-grid { grid-template-columns: 1fr; }
-  .feature-strip { grid-template-columns: repeat(2, 1fr); }
+  .grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .wrap { padding: 0 12px; }
   .navbar { flex-wrap: wrap; border-radius: var(--radius); }
-  .nav-links { order: 3; width: 100%; justify-content: space-between; }
-  .hero-trust { justify-content: center; }
-  .hero-stats { grid-template-columns: 1fr; }
   .grid { grid-template-columns: 1fr; }
   .tiles { grid-template-columns: 1fr; }
   .donut-row, .platter-stage { flex-direction: column; align-items: stretch; }
   .donut, .platter { align-self: center; }
   .fastfetch { flex-direction: column; align-items: stretch; }
   .fastfetch-logo { margin: 0 auto; }
-  .feat-grid, .how-grid { grid-template-columns: 1fr; }
-  .feature-strip { grid-template-columns: 1fr; }
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -699,11 +563,6 @@ body::after {
   <!-- ══════════════ NAVBAR ══════════════ -->
   <nav class="navbar glass">
     <div class="nav-brand">zDash<span class="brand-host" id="brand-host"></span></div>
-    <div class="nav-links">
-      <button class="nav-item active" data-view="landing" type="button">Overview</button>
-      <a class="nav-item" href="#features" data-scroll="features">Features</a>
-      <button class="nav-item" data-view="dashboard" type="button">Dashboards</button>
-    </div>
     <div class="nav-right">
       <span class="live" id="nav-live">live</span>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme" title="Switch theme">
@@ -712,193 +571,9 @@ body::after {
     </div>
   </nav>
 
-  <!-- ══════════════ LANDING ══════════════ -->
-  <div id="view-landing">
-    <header class="hero glass">
-      <div class="hero-grid">
-        <div>
-          <div class="hero-eyebrow"><span class="eyebrow-dot"></span> Self-hosted · read-only · zero dependencies</div>
-          <h1 class="hero-title">Your ZFS pools,<br><span class="grad-text">under watch.</span></h1>
-          <p class="hero-sub">
-            A security-first monitoring console for ZFS, the ARC cache and drive health.
-            One pure-Go binary, no agents, no databases, no phone-home. Glass-clean
-            real-time dashboards, live within seconds of <code>$ go run</code>.
-          </p>
-          <div class="hero-cta">
-            <button class="btn btn-primary" data-view="dashboard" type="button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              Open live dashboards
-            </button>
-            <a class="btn btn-ghost" href="#features">Explore features</a>
-          </div>
-          <div class="hero-trust">
-            <span>read-only</span><span>127.0.0.1 default</span><span>single binary</span><span>no tracking</span>
-          </div>
-        </div>
-        <div class="hero-console">
-          <div class="console-bar">
-            <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
-            <span class="console-title">zdash · live telemetry</span>
-          </div>
-          <div class="console-body">
-            <div class="con-line"><span class="con-prompt">$</span> zpool list -v --json</div>
-            <div class="con-line con-ok">✓ pools scanned · health ONLINE<span id="land-console-pools"></span></div>
-            <div class="con-line"><span class="con-prompt">$</span> cat /proc/spl/kstat/zfs/arcstats</div>
-            <div class="con-line con-ok">✓ arc hit ratio <span id="land-console-arc">—</span></div>
-            <div class="con-line con-ok">✓ 0 mutations · 0 outbound calls</div>
-            <div class="con-line con-cursor" style="margin-top:4px">▍</div>
-          </div>
-        </div>
-      </div>
-      <div class="hero-stats">
-        <div class="hstat">
-          <div class="hs-label">ZFS Pools</div>
-          <div class="hs-value" id="land-pools">—</div>
-          <div class="hs-sub" id="land-pools-sub">waiting for telemetry</div>
-        </div>
-        <div class="hstat">
-          <div class="hs-label">ARC Hit Ratio</div>
-          <div class="hs-value" id="land-arc">—</div>
-          <div class="hs-sub">rolling since load</div>
-        </div>
-        <div class="hstat">
-          <div class="hs-label">Host Uptime</div>
-          <div class="hs-value" id="hero-uptime">—</div>
-          <div class="hs-sub">up and watching</div>
-        </div>
-      </div>
-    </header>
-
-    <section class="feature-strip glass">
-      <div class="fs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg> Read-only by design</div>
-      <div class="fs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Zero dependencies</div>
-      <div class="fs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Local-first security</div>
-      <div class="fs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Real-time streaming</div>
-    </section>
-
-    <section class="features" id="features">
-      <div class="section-head">
-        <div class="section-eyebrow">Why zDash</div>
-        <h2 class="section-title">Everything a storage engineer needs,<br>nothing an attacker wants.</h2>
-        <p class="section-sub">Built to observe, never to modify. Every design decision starts from a threat model of "this box might be on the edge".</p>
-      </div>
-      <div class="feat-grid">
-        <div class="feat glass glass-hover">
-          <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
-          <h3>Read-only telemetry</h3>
-          <p>zDash only invokes inspection commands — <code>zpool list -v --json</code>, <code>smartctl --xall</code>, kstat and <code>/proc</code> reads. It cannot scrub, export, or touch a device. There is no mutation-capable endpoint: every API is GET-only.</p>
-        </div>
-        <div class="feat glass glass-hover">
-          <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg></div>
-          <h3>Zero dependencies</h3>
-          <p>One compiled binary, one embedded HTML file. No npm tree, no containers, no vendor blobs to audit. The entire data path — scraper, API, UI — is a single pure-Go module with an empty <code>go.mod</code> require list.</p>
-        </div>
-        <div class="feat glass glass-hover">
-          <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-          <h3>Local-first security</h3>
-          <p>Binds to <code>127.0.0.1:8080</code> by default so there is nothing to expose. No accounts to brute-force, no tokens to leak, and telemetry never leaves the machine. Add a reverse proxy with mTLS or a VPN for remote viewing.</p>
-        </div>
-        <div class="feat glass glass-hover">
-          <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-          <h3>Real-time by default</h3>
-          <p>Pools, ARC, SMART and system telemetry are scraped in parallel every 5 seconds. Live hit/miss traffic streams, rolling hit-ratio sparklines and KPI gauges update in place — the dashboard never tears itself down.</p>
-        </div>
-        <div class="feat glass glass-hover">
-          <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="21" x2="21" y2="16"/><line x1="21" y1="21" x2="21" y2="21"/></svg></div>
-          <h3>Minimal attack surface</h3>
-          <p>Explicit HTTP timeouts, context-cancelled scrapers, direct <code>exec</code> with argv (never a shell), and no user input ever reaches a command line. CI runs gofmt, go vet, tests and a CodeQL workflow on every release.</p>
-        </div>
-        <div class="feat glass glass-hover">
-          <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
-          <h3>Answers hard questions</h3>
-          <p>Sector-level SMART attributes, dedup ratio, fragmentation, ARC MRU/MFU composition, demand vs prefetch pressure and L2ARC coverage — the numbers you actually argue about at 3&nbsp;am.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="how">
-      <div class="section-head">
-        <div class="section-eyebrow">Up &amp; running</div>
-        <h2 class="section-title">Live in three steps</h2>
-      </div>
-      <div class="how-grid">
-        <div class="how-step glass glass-hover">
-          <div class="how-num">1</div>
-          <h3>Run the server</h3>
-          <p>zDash needs a ZFS system and read access to <code>/dev/zfs</code> (zfs/disk group or root). Then start it with the Go toolchain or the release binary.</p>
-          <code>go run paepcke.de/zdash/cmd/zdash@latest</code>
-        </div>
-        <div class="how-step glass glass-hover">
-          <div class="how-num">2</div>
-          <h3>Open the browser</h3>
-          <p>The dashboard polls <code>/api/zpool</code>, <code>/api/arc</code>, <code>/api/smart</code> and <code>/api/sysinfo</code> in parallel, every five seconds. No page reloads, no build step.</p>
-          <code>http://127.0.0.1:8080</code>
-        </div>
-        <div class="how-step glass glass-hover">
-          <div class="how-num">3</div>
-          <h3>Harden for the network</h3>
-          <p>Keep the loopback default. For remote viewing, put zDash behind a reverse proxy that terminates TLS and enforces authentication.</p>
-          <code>BIND_ADDR=127.0.0.1:8080 · proxy → mTLS/VPN</code>
-        </div>
-      </div>
-    </section>
-
-    <section class="security">
-      <div class="sec-grid">
-        <div class="sec-panel glass">
-          <div class="hero-eyebrow"><span class="eyebrow-dot" style="background:var(--phosphor)"></span> Security posture</div>
-          <h3>Designed for the paranoid, engineered for the pragmatic</h3>
-          <p>
-            zDash treats monitoring as a thin, read-only window into the kernel — nothing more.
-            Because it never writes to the system it observes, a compromised dashboard cannot
-            escalate to data loss. That is the threat model, and every line follows from it:
-            no shell interpolation, no write endpoints, bounded resource use, and a default
-            bind address that keeps the service off the wire entirely.
-          </p>
-        </div>
-        <div class="sec-checks glass">
-          <div class="sec-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span><b>Loopback-only by default</b><span class="sc-sub">Binds 127.0.0.1:8080 unless you explicitly override with BIND_ADDR.</span></span>
-          </div>
-          <div class="sec-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span><b>Read-only endpoints</b><span class="sc-sub">Every API is GET-only; the server never mutates a pool, cache, or drive.</span></span>
-          </div>
-          <div class="sec-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span><b>Pure-Go, zero dependencies</b><span class="sc-sub">An empty go.mod require list means nothing to supply-chain attack.</span></span>
-          </div>
-          <div class="sec-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span><b>No shell, ever</b><span class="sc-sub">Child processes are exec'd with explicit argv arrays — nothing is concatenated.</span></span>
-          </div>
-          <div class="sec-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span><b>Bounded operations</b><span class="sc-sub">Context-cancelled scrapers with 5s timeouts — a stalled /proc mount cannot hang the UI.</span></span>
-          </div>
-          <div class="sec-check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <span><b>Gated releases</b><span class="sc-sub">gofmt, go vet, tests and a CodeQL workflow run before binaries are published.</span></span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="cta glass">
-      <h2>Stop guessing. <span class="grad-text">Start watching.</span></h2>
-      <p>The telemetry is already on your machine — zDash just gives it a face.</p>
-      <div class="hero-cta">
-        <button class="btn btn-primary" data-view="dashboard" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          Enter the dashboards
-        </button>
-      </div>
-    </section>
-  </div>
 
   <!-- ══════════════ DASHBOARD ══════════════ -->
-  <div id="view-dashboard" hidden>
+  <div id="view-dashboard">
     <header class="dash-head">
       <div class="dash-title">
         <h2>Real-time monitoring</h2>
@@ -963,19 +638,6 @@ body::after {
 </button>
 
 <script>
-  /* ── view switching: landing ⇄ dashboard ─────────────────── */
-  function showView(name) {
-    const landing = document.getElementById('view-landing');
-    const dash = document.getElementById('view-dashboard');
-    if (landing) landing.hidden = name !== 'landing';
-    if (dash) dash.hidden = name !== 'dashboard';
-    document.querySelectorAll('.nav-item[data-view]').forEach(b => {
-      b.classList.toggle('active', b.dataset.view === name);
-    });
-    if (name === 'dashboard' && Date.now() - lastRefresh > 800) refreshAll();
-    if (name === 'dashboard') window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
   /* ── theme switcher (light default, dark ambient) ────────── */
   const THEME_KEY = 'zdash-theme';
   const ICON_SUN = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
@@ -1005,20 +667,6 @@ body::after {
         if (Date.now() - lastRefresh > 800) refreshAll();
       });
     }
-  });
-
-  /* view / scroll nav wiring */
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-view]').forEach(el => {
-      el.addEventListener('click', () => showView(el.dataset.view));
-    });
-    document.querySelectorAll('[data-scroll]').forEach(el => {
-      el.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        const target = document.getElementById(el.dataset.scroll);
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
   });
 
   /* ── matrix rain (dark theme ambient, subtle) ────────────── */
@@ -1269,7 +917,6 @@ body::after {
   function renderKPIs(pools, arc) {
     const el = document.getElementById('kpis');
     const kpis = [];
-    let landPools = '—', landPoolsSub = 'waiting for telemetry', landArc = '—', landArcSub = 'rolling since load';
 
     if (caps.zfs) {
       let poolCount = 0, onlineCount = 0, totalCap = 0, countCap = 0;
@@ -1284,8 +931,6 @@ body::after {
       const avgCap = countCap ? (totalCap / countCap) : 0;
       kpis.push({ accent: 'pool', label: 'pools', value: poolCount || '—', sub: `${onlineCount} online`, bar: 100 });
       kpis.push({ accent: 'pool', label: 'avg capacity', value: poolCount ? avgCap.toFixed(1) + '%' : '—', sub: 'across all pools', bar: avgCap });
-      landPools = poolCount || '0';
-      landPoolsSub = `${onlineCount} online`;
     }
 
     if (caps.arc && arc) {
@@ -1296,8 +941,6 @@ body::after {
       kpis.push({ accent: 'size', label: 'arc size', value: fmtBytes(arc.size), sub: 'max ' + fmtBytes(arc.c_max), bar: arc.c_max ? (arc.size / arc.c_max * 100) : 0 });
       const used = arc.c_max ? (arc.size / arc.c_max * 100) : 0;
       kpis.push({ accent: 'arc', label: 'arc utilization', value: used.toFixed(1) + '%', sub: fmtBytes(arc.c) + ' target', bar: used });
-      landArc = hitRatio.toFixed(1) + '%';
-      landArcSub = fmtNum(arc.hits) + ' hits';
     }
 
     el.innerHTML = kpis.map(k => `
@@ -1307,32 +950,64 @@ body::after {
         <div class="kpi-sub">${k.sub}</div>
         <div class="kpi-bar" style="width:${Math.min(k.bar, 100).toFixed(1)}%"></div>
       </div>`).join('');
-
-    const lp = document.getElementById('land-pools');
-    const lps = document.getElementById('land-pools-sub');
-    const la = document.getElementById('land-arc');
-    const lcarc = document.getElementById('land-console-arc');
-    const lcp = document.getElementById('land-console-pools');
-    if (lp) lp.textContent = landPools;
-    if (lps) lps.textContent = landPoolsSub;
-    if (la) la.textContent = landArc;
-    if (lcarc) lcarc.textContent = landArc !== '—' ? '(' + landArc + ')' : '—';
-    if (lcp) lcp.textContent = landPools !== '—' ? ` (${landPools})` : '';
   }
 
   /* ── System overview (fastfetch-style) ────────────────────── */
-  function osAsciiLogo(osId) {
-    const letter = (osId || 'z').charAt(0).toUpperCase();
-    return [
-      '┌──────────┐',
-      '│ ▓▓▓▓▓▓▓▓ │  ── platter',
-      '│ ▓▓▓▓▓▓▓▓ │  ── platter',
-      '│ ▓▓▓▓▓▓▓▓ │  ── platter',
-      '│   ['+letter+']    │  ── host',
-      '└──┬───┬──┘',
-      '   │ z │       spindle',
-      '   └───┘',
-    ].join('\n');
+  /* Returns an inline SVG distro mark: the NixOS snowflake when the host
+     reports os_id === 'nixos', otherwise a generic Linux/Tux penguin. */
+  function osLogoSVG(osId) {
+    const id = (osId || '').toLowerCase();
+    const stroke = 'var(--phosphor)';
+    const accent = 'var(--phosphor-bright)';
+    if (id === 'nixos') {
+      // NixOS snowflake: six-fold symmetric lambda logo.
+      return `
+      <svg class="distro-logo nixos" viewBox="0 0 128 128" role="img" aria-label="NixOS">
+        <defs>
+          <linearGradient id="nix-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#7eb1ce"/>
+            <stop offset="100%" stop-color="#527f96"/>
+          </linearGradient>
+        </defs>
+        <g fill="url(#nix-grad)" fill-rule="evenodd">
+          ${nixosSnowflake()}
+        </g>
+      </svg>`;
+    }
+    // Generic Tux-style penguin silhouette.
+    return `
+    <svg class="distro-logo tux" viewBox="0 0 128 128" role="img" aria-label="Linux">
+      <defs>
+        <linearGradient id="tux-body" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#1f2937"/>
+          <stop offset="100%" stop-color="#0b1220"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="64" cy="74" rx="34" ry="42" fill="url(#tux-body)"/>
+      <ellipse cx="64" cy="92" rx="22" ry="24" fill="#f9fafb"/>
+      <ellipse cx="52" cy="44" rx="9" ry="11" fill="#f9fafb"/>
+      <ellipse cx="76" cy="44" rx="9" ry="11" fill="#f9fafb"/>
+      <circle cx="52" cy="46" r="3.4" fill="#1f2937"/>
+      <circle cx="76" cy="46" r="3.4" fill="#1f2937"/>
+      <path d="M58 56 Q64 62 70 56 Q64 70 58 56 Z" fill="#f59e0b"/>
+      <ellipse cx="44" cy="100" rx="9" ry="6" fill="#f59e0b"/>
+      <ellipse cx="84" cy="100" rx="9" ry="6" fill="#f59e0b"/>
+    </svg>`;
+  }
+
+  /* Six rotated copies of the NixOS "λ"-shaped snowflake arm centered at 64,64.
+     Built from two overlapping slanted bars per arm. */
+  function nixosSnowflake() {
+    const cx = 64, cy = 64;
+    let arms = '';
+    for (let i = 0; i < 6; i++) {
+      const a = i * 60;
+      arms += `<g transform="rotate(${a} ${cx} ${cy})">
+        <rect x="60" y="18" width="8" height="46" rx="2"/>
+        <rect x="60" y="18" width="8" height="46" rx="2" transform="rotate(120 64 64)"/>
+      </g>`;
+    }
+    return arms;
   }
 
   function ffRow(key, valHtml) {
@@ -1369,31 +1044,32 @@ body::after {
       : '—';
     const osFull = escapeHTML(osLabel);
 
-    const rows = [
+    /* Split the fastfetch rows into two columns: identity (left) and
+       runtime (right) for a denser, more scannable host card. */
+    const idRows = [
       ffRow('OS', osFull),
       ffRow('Host', escapeHTML(s.hostname || '—')),
       ffRow('Hardware', escapeHTML(hostStr)),
+      ffRow('Machine', escapeHTML(s.machine || '—')),
+      ffRow('Locale', escapeHTML(s.locale || '—')),
+      ffRow('Network', netStr),
+    ];
+    const rtRows = [
       ffRow('Kernel', escapeHTML(kernelFull || '—')),
       ffRow('Kernel ver', escapeHTML(s.kernel_version || '—')),
       ffRow('Uptime', escapeHTML(s.uptime || '—')),
-      ffRow('Packages', escapeHTML(s.processes ? s.processes.toLocaleString() : '—')),
-      ffRow('Locale', escapeHTML(s.locale || '—')),
+      ffRow('Procs', escapeHTML(s.processes ? s.processes.toLocaleString() : '—')),
       ffRow('CPU', `${escapeHTML(s.cpu_model || '—')} <span class="ff-sep">·</span> ${coresStr} cores`),
-      ffRow('Freq', escapeHTML(freqStr)),
       ffRow('Memory',
         `${fmtBytes(s.memory_used_bytes)} / ${fmtBytes(s.memory_total_bytes)}` +
         (s.memory_total_bytes
           ? ` <span class="ff-bar bar"><span class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},var(--c-amber-soft))"></span></span>`
           : '')),
       ffRow('Swap', escapeHTML(swapStr)),
-      ffRow('Network', netStr),
-      ffRow('Machine', escapeHTML(s.machine || '—')),
     ];
 
     const uptime = s.uptime || '—';
-    const upEl = document.getElementById('hero-uptime');
     const dashUp = document.getElementById('dash-uptime');
-    if (upEl) upEl.textContent = uptime;
     if (dashUp) dashUp.textContent = uptime + ' uptime';
 
     const brandHostEl = document.getElementById('brand-host');
@@ -1405,12 +1081,15 @@ body::after {
     }
 
     grid.innerHTML = `
-      <div class="card" style="grid-column:1 / -1">
+      <div class="card sys-host-card" style="grid-column:1 / -1">
         <div class="fastfetch">
-          <div class="fastfetch-logo"><pre>${escapeHTML(osAsciiLogo(s.os_id))}</pre></div>
+          <div class="fastfetch-logo">${osLogoSVG(s.os_id)}</div>
           <div class="fastfetch-rows">
             <div class="ff-title">${escapeHTML(osLabel)} <span class="ff-host">@ ${escapeHTML(s.hostname || 'host')}</span></div>
-            ${rows.join('')}
+            <div class="ff-cols">
+              <div class="ff-col">${idRows.join('')}</div>
+              <div class="ff-col">${rtRows.join('')}</div>
+            </div>
           </div>
         </div>
       </div>
