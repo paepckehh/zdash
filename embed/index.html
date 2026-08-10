@@ -290,7 +290,8 @@ body::after {
   padding: 4px 10px; background: var(--glass-2);
 }
 .version-box .v-label { color: var(--dim); margin-right: 4px; }
-.version-box .v-tag { color: var(--phosphor); }
+.version-box .v-tag { color: var(--phosphor); text-decoration: none; }
+.version-box .v-tag:hover { text-decoration: underline; }
 
 /* KPI strip */
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 26px; }
@@ -582,7 +583,7 @@ body::after {
       <div class="dash-meta">
         <span id="dash-uptime">— uptime</span>
         <div class="version-box" title="zDash build version">
-          <span class="v-label">zDash</span><span class="v-tag" id="version-tag">__ZDASH_VERSION__</span>
+          <span class="v-label">zDash</span><a class="v-tag" id="version-tag" href="https://paepcke.de/zdash" target="_blank" rel="noopener">__ZDASH_VERSION__</a>
         </div>
       </div>
     </header>
