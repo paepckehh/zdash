@@ -1867,7 +1867,7 @@ body::after {
     if (details.ata) {
       const criticalIds = [5, 197, 198];
       for (const a of details.ata.attributes) {
-        if (criticalIds.includes(a.id) && a.raw && a.raw.value > 0) return 'b-degraded';
+        if (criticalIds.includes(a.id) && a.raw > 0) return 'b-degraded';
       }
     }
     return 'b-online';
@@ -1892,7 +1892,7 @@ body::after {
     const n = details.nvme;
     if (!n) return '';
     const sparePct = n.available_spare_threshold
-      ? Math.min((n.available_spare / 100) * 100, 100) : 100;
+      ? Math.min((n.available_spare / n.available_spare_threshold) * 100, 100) : 100;
     const endurancePct = Math.min(n.percentage_used, 100);
     const enduranceColor = endurancePct > 80 ? C.red
       : endurancePct > 60 ? C.amber : C.green;

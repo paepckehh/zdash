@@ -307,8 +307,8 @@ func parseSmartAll(raw *rawSmartAll) *SmartDetails {
 		DeviceType:          raw.Device.Type,
 		SmartPassed:         raw.SmartStatus.Passed,
 		TemperatureCurrent:  raw.Temperature.Current,
-		TemperatureWarning:  maxZero(raw.NVMeThresholds.Warning, raw.Temperature.OpLimitMax),
-		TemperatureCritical: maxZero(raw.NVMeThresholds.Critical, raw.Temperature.CriticalLimitMax),
+		TemperatureWarning:  max(raw.NVMeThresholds.Warning, raw.Temperature.OpLimitMax),
+		TemperatureCritical: max(raw.NVMeThresholds.Critical, raw.Temperature.CriticalLimitMax),
 		PowerOnHours:        raw.PowerOnTime.Hours,
 		PowerCycleCount:     raw.PowerCycleCount,
 	}
@@ -369,14 +369,6 @@ func parseSmartAll(raw *rawSmartAll) *SmartDetails {
 		d.ATA = ata
 	}
 	return d
-}
-
-// maxZero returns the largest non-zero argument, or 0 if both are zero.
-func maxZero(a, b int) int {
-	if a >= b {
-		return a
-	}
-	return b
 }
 
 // HandleSmartAPI exposes the aggregated SMART snapshot at /api/smart. GET only.

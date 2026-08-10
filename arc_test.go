@@ -53,6 +53,9 @@ func TestParseARCStats_Sample(t *testing.T) {
 		t.Errorf("memory_available_bytes = %d, want 2147483648",
 			m.MemoryAvailableBytes)
 	}
+	if m.Deleted != 6789 {
+		t.Errorf("deleted = %d, want 6789", m.Deleted)
+	}
 }
 
 func TestParseARCStats_Truncated(t *testing.T) {

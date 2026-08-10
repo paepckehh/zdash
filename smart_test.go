@@ -1,7 +1,6 @@
 package zdash
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -131,17 +130,6 @@ func TestParseSmartAll_Empty(t *testing.T) {
 	}
 	if d.NVMe != nil || d.ATA != nil {
 		t.Error("transport health should be nil for empty raw")
-	}
-}
-
-func TestMaxZero(t *testing.T) {
-	cases := []struct{ a, b, want int }{
-		{0, 0, 0}, {0, 5, 5}, {7, 0, 7}, {3, 9, 9}, {9, 3, 9},
-	}
-	for _, c := range cases {
-		if got := maxZero(c.a, c.b); got != c.want {
-			t.Errorf("maxZero(%d,%d) = %d, want %d", c.a, c.b, got, c.want)
-		}
 	}
 }
 
@@ -418,6 +406,3 @@ func smartShBody(payload string) []byte {
 	// JSON cannot break the script body.
 	return []byte("#!/bin/sh\ncat <<" + "EOF_SMART_FIXTURE" + "\n" + payload + "\nEOF_SMART_FIXTURE\n")
 }
-
-// silence "unused" if bytes ever gets dropped during edits
-var _ = bytes.MinRead

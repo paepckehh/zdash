@@ -45,6 +45,9 @@ type ARCMetrics struct {
 	DbufSize             uint64 `json:"dbuf_size"`
 	DnodeSize            uint64 `json:"arc_dnode_size"`
 	HdrSize              uint64 `json:"hdr_size"`
+	// Deleted is the cumulative count of ARC entries evicted (the "deleted"
+	// kstat key). Surfaced so the dashboard's "Evicted" tile has real data.
+	Deleted              uint64 `json:"deleted"`
 	L2Size               uint64 `json:"l2_size"`
 	L2Asize              uint64 `json:"l2_asize"`
 	L2Ndev               uint64 `json:"l2_ndev"`
@@ -143,6 +146,7 @@ func parseARCStats(raw []byte) (*ARCMetrics, error) {
 		DbufSize:             kv["dbuf_size"],
 		DnodeSize:            kv["arc_dnode_size"],
 		HdrSize:              kv["hdr_size"],
+		Deleted:              kv["deleted"],
 		L2Size:               kv["l2_size"],
 		L2Asize:              kv["l2_asize"],
 		L2Ndev:               kv["l2_ndev"],
