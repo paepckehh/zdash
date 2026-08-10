@@ -27,6 +27,7 @@ deps:
 	rm go.mod go.sum
 	go mod init $(PROJECT_BASE)/$(PROJECT)
 	go mod tidy -v
+	git config core.fileMode false
 
 check:
 	CGO_ENABLED=0 go fmt ./...
