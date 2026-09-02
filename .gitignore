@@ -1,3 +1,5 @@
 # Never commit Go build binaries
 /zdash
 /zdash.exe
+/cmd/zdash/zdash
+/cmd/zdash/zdash.exe
