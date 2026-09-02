@@ -282,7 +282,9 @@ body::after {
   flex-wrap: wrap; gap: 14px; margin: 8px 0 22px;
 }
 .dash-title { display: flex; align-items: center; gap: 14px; }
+.dash-heading { display: flex; flex-direction: column; gap: 2px; }
 .dash-title h2 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+.page-sub { font-size: 0.76rem; color: var(--dim); letter-spacing: 0.07em; font-family: var(--font-mono); }
 .dash-meta { display: flex; align-items: center; gap: 14px; font-size: 0.78rem; color: var(--dim); }
 .version-box, .v-box {
   font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600;
@@ -307,16 +309,25 @@ body::after {
   background: var(--grad-accent); opacity: 0.75;
 }
 .kpi:hover { background: var(--kpi-hover); transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--line-strong); }
+.kpi-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kpi-icon { width: 16px; height: 16px; display: inline-flex; color: var(--phosphor); flex-shrink: 0; }
+.kpi-icon svg { width: 100%; height: 100%; display: block; }
 .kpi-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--muted); font-weight: 700; }
-.kpi-value { font-size: 1.65rem; font-weight: 800; margin-top: 7px; font-variant-numeric: tabular-nums; color: var(--phosphor-bright); font-family: var(--font-mono); letter-spacing: -0.01em; }
-.kpi[data-accent="hit"] .kpi-value { color: var(--mint); text-shadow: var(--glow-mint); }
-.kpi[data-accent="miss"] .kpi-value { color: var(--crimson); text-shadow: var(--glow-crimson); }
-.kpi[data-accent="size"] .kpi-value, .kpi[data-accent="arc"] .kpi-value { color: var(--cyan); }
-.kpi-sub { font-size: 0.72rem; color: var(--dim); margin-top: 4px; }
+.kpi-value { font-size: 1.65rem; font-weight: 800; margin-top: 7px; font-variant-numeric: tabular-nums; color: var(--phosphor-bright); font-family: var(--font-mono); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-value.txt { font-size: 1.12rem; letter-spacing: 0; line-height: 1.35; }
+.kpi-sub { font-size: 0.72rem; color: var(--dim); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kpi-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, var(--phosphor), var(--cyan)); width: 0; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
-.kpi[data-accent="hit"] .kpi-bar { background: var(--grad-ok); }
-.kpi[data-accent="miss"] .kpi-bar { background: var(--grad-danger); }
-.kpi[data-accent="size"] .kpi-bar, .kpi[data-accent="arc"] .kpi-bar { background: linear-gradient(90deg, var(--cyan), var(--violet)); }
+.kpi[data-accent="pool"] .kpi-value { color: var(--phosphor-bright); }
+.kpi[data-accent="ok"] .kpi-value { color: var(--mint); text-shadow: var(--glow-mint); }
+.kpi[data-accent="warn"] .kpi-value { color: var(--amber-warn); }
+.kpi[data-accent="err"] .kpi-value { color: var(--crimson); text-shadow: var(--glow-crimson); }
+.kpi[data-accent="info"] .kpi-value { color: var(--cyan); }
+.kpi[data-accent="violet"] .kpi-value { color: var(--violet); }
+.kpi[data-accent="ok"] .kpi-bar { background: var(--grad-ok); }
+.kpi[data-accent="warn"] .kpi-bar { background: var(--grad-warn); }
+.kpi[data-accent="err"] .kpi-bar { background: var(--grad-danger); }
+.kpi[data-accent="info"] .kpi-bar { background: linear-gradient(90deg, var(--cyan), var(--violet)); }
+.kpi[data-accent="violet"] .kpi-bar { background: linear-gradient(90deg, var(--violet), var(--phosphor)); }
 
 /* tabs */
 .tabs { display: flex; gap: 8px; margin: 0 0 22px; width: 100%; overflow-x: auto; padding: 3px; position: relative; }
@@ -339,8 +350,14 @@ body::after {
 .pane.active { display: block; animation: pane-fade 0.4s ease; }
 @keyframes pane-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* grid + cards */
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+/* grid + cards (12-column layout, cards default to half width) */
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
+.grid > .card { grid-column: span 6; }
+.col-4 { grid-column: span 4; }
+.col-5 { grid-column: span 5; }
+.col-6 { grid-column: span 6; }
+.col-7 { grid-column: span 7; }
+.col-12 { grid-column: 1 / -1; }
 .card {
   background: var(--glass); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
@@ -373,6 +390,7 @@ body::after {
 .b-online { background: var(--badge-online-bg); color: var(--mint); border-color: rgba(13,150,104,0.3); }
 .b-degraded { background: var(--badge-degraded-bg); color: var(--amber-warn); border-color: rgba(217,119,6,0.35); }
 .b-offline { background: var(--badge-offline-bg); color: var(--crimson); border-color: rgba(220,38,38,0.35); }
+.b-neutral { background: var(--tile-bg); color: var(--muted); border-color: var(--line-strong); }
 :root[data-theme="dark"] .b-online, :root[data-theme="dark"] .b-degraded, :root[data-theme="dark"] .b-offline { border-color: var(--line-strong); }
 
 /* stat tiles */
@@ -420,30 +438,8 @@ body::after {
 .spark svg { width: 100%; height: 100%; display: block; }
 .spark-axis { display: flex; justify-content: space-between; font-size: 0.58rem; color: var(--dim); letter-spacing: 0.1em; margin-top: 3px; font-family: var(--font-mono); }
 
-/* pool capacity stat (compact variant) */
-.cap-stat { display: flex; flex-direction: column; gap: 10px; padding: 14px 0 6px; }
-.cap-stat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.cap-stat-pct { font-size: 2.1rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--phosphor-bright); font-family: var(--font-mono); }
-.cap-stat-pct.warn { color: var(--amber-warn); }
-.cap-stat-pct.crit { color: var(--crimson); }
-.cap-stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.18em; font-weight: 700; color: var(--muted); }
-.cap-stat-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
-.cap-stat-rows .sr { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); padding: 3px 0; border-bottom: 1px solid var(--line); }
-.cap-stat-rows .sr span:last-child { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 0.76rem; }
-
-/* spinning platter */
-.platter-card { display: flex; flex-direction: column; }
-.platter-stage { display: flex; align-items: center; gap: 22px; margin: 6px 0 16px; }
-.platter { position: relative; width: 130px; height: 130px; flex-shrink: 0; cursor: pointer; }
-.platter svg { display: block; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.18)); }
-.platter .spin { transform-origin: 50% 50%; animation: spin-disk 16s linear infinite; }
-.platter:hover .spin { animation-duration: 4s; }
-.platter .head { transform-origin: 6% 50%; animation: head-seek 5.5s ease-in-out infinite; }
-@keyframes spin-disk { to { transform: rotate(360deg); } }
-@keyframes head-seek { 0%,100% { transform: rotate(-8deg); } 30% { transform: rotate(6deg); } 60% { transform: rotate(-2deg); } }
-.platter-info { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.platter-info .pi-row { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); }
-.platter-info .pi-row span:last-child { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 0.76rem; }
+/* ring gauge row (pool capacity) */
+.gauge-row { display: flex; align-items: center; gap: 22px; margin: 6px 0 16px; }
 
 /* vdev list */
 .vdevs { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
@@ -457,6 +453,14 @@ body::after {
 .vdev:hover { background: var(--tile-hover); border-left-color: var(--phosphor); transform: translateX(3px); }
 .vdev-name { color: var(--phosphor-bright); font-size: 0.76rem; word-break: break-all; font-weight: 600; font-family: var(--font-mono); }
 .vdev-info { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 0.7rem; flex-shrink: 0; }
+.type-chip {
+  font-family: var(--font-mono); font-size: 0.56rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--phosphor); background: var(--tile-bg);
+  border: 1px solid var(--line); border-radius: var(--radius-pill);
+  padding: 2px 8px; white-space: nowrap;
+}
+.head-badges { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
 /* loading / error */
 .state { text-align: center; padding: 50px 20px; color: var(--muted); font-size: 0.92rem; }
@@ -470,10 +474,37 @@ body::after {
 @keyframes spin { to { transform: rotate(360deg); } }
 .err { color: var(--crimson); }
 .err-detail { font-size: 0.78rem; opacity: 0.8; margin-top: 8px; color: var(--muted); font-family: var(--font-mono); }
+.state-err { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 10px; }
+.state-err svg { width: 32px; height: 32px; color: var(--crimson); flex-shrink: 0; }
+.state-err .err { font-size: 0.95rem; font-weight: 600; text-align: center; }
+.state-err .err-detail { margin-top: 0; text-align: center; }
 .muted-note { font-size: 0.72rem; color: var(--dim); margin-top: 13px; text-align: center; }
 
-/* fastfetch-style system summary */
-.fastfetch { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; }
+/* tiles variant with two columns */
+.tiles.tiles-2 { grid-template-columns: repeat(2, 1fr); }
+
+/* SMART attribute table */
+.table-scroll { overflow-x: auto; margin: 6px 0 2px; }
+.smart-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.74rem; }
+.smart-table th {
+  text-align: left; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--muted); font-weight: 700; padding: 8px 10px;
+  border-bottom: 1px solid var(--line-strong); white-space: nowrap;
+}
+.smart-table td {
+  padding: 7px 10px; border-bottom: 1px solid var(--line);
+  color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.smart-table tr:last-child td { border-bottom: none; }
+.smart-table tbody tr:hover td { background: var(--tile-hover); }
+.smart-table .attr-id { color: var(--muted); }
+.smart-table .attr-name { color: var(--phosphor-bright); font-weight: 600; }
+.smart-table .attr-raw { color: var(--muted); }
+.smart-table .t-ok { color: var(--mint); }
+.smart-table .t-warn { color: var(--amber-warn); font-weight: 700; }
+.smart-table .t-crit { color: var(--crimson); font-weight: 700; }
+
+/* fastfetch-style key/value rows (host card) */
 .fastfetch-logo {
   flex-shrink: 0; width: 124px; height: 124px; padding: 10px;
   background: var(--tile-bg); border: 1px solid var(--line);
@@ -481,18 +512,31 @@ body::after {
   display: flex; align-items: center; justify-content: center;
 }
 .fastfetch-logo .distro-logo { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.18)); }
-.fastfetch-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
-.ff-title { font-size: 1.12rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px; color: var(--phosphor-bright); }
-.ff-title .ff-host { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
 .ff-row { display: flex; align-items: baseline; gap: 9px; font-size: 0.8rem; line-height: 1.45; }
 .ff-key { color: var(--phosphor); font-weight: 600; min-width: 98px; flex-shrink: 0; font-size: 0.74rem; letter-spacing: 0.05em; font-family: var(--font-mono); }
 .ff-sep { color: var(--dim); }
 .ff-val { color: var(--text); font-size: 0.78rem; word-break: break-word; }
 .ff-bar { flex: 1; max-width: 200px; margin-left: 4px; }
 .ff-bar .bar { height: 6px; }
-.ff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 32px; }
+.ff-cols, .kv-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 32px; }
 .ff-col { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-@media (max-width: 720px) { .ff-cols { grid-template-columns: 1fr; gap: 0; } }
+@media (max-width: 720px) { .ff-cols, .kv-list { grid-template-columns: 1fr; gap: 0; } }
+
+/* host card head (logo + hostname + os/kernel) */
+.host-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; min-width: 0; }
+.host-card-head .fastfetch-logo { width: 58px; height: 58px; padding: 7px; border-radius: var(--radius-sm); }
+.host-head-text { min-width: 0; }
+.host-name { font-size: 1.12rem; font-weight: 800; letter-spacing: -0.01em; color: var(--phosphor-bright); word-break: break-word; }
+.host-os { font-size: 0.72rem; color: var(--muted); font-family: var(--font-mono); margin-top: 2px; word-break: break-word; }
+
+/* big uptime hero (system tab) */
+.uptime-hero {
+  font-family: var(--font-mono); font-size: 1.9rem; font-weight: 800;
+  color: var(--cyan); text-align: center; padding: 12px 0 10px;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  text-shadow: 0 0 18px rgba(34,211,238,0.25);
+}
+:root[data-theme="light"] .uptime-hero { text-shadow: none; }
 
 /* ARC live stream */
 .stream-card { margin-bottom: 18px; }
@@ -533,17 +577,15 @@ body::after {
 
 /* ── responsive ───────────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .grid { grid-template-columns: 1fr; }
+  .grid > * { grid-column: 1 / -1 !important; }
 }
 @media (max-width: 640px) {
   .wrap { padding: 0 12px; }
   .navbar { flex-wrap: wrap; border-radius: var(--radius); }
-  .grid { grid-template-columns: 1fr; }
   .tiles { grid-template-columns: 1fr; }
-  .donut-row, .platter-stage { flex-direction: column; align-items: stretch; }
-  .donut, .platter { align-self: center; }
-  .fastfetch { flex-direction: column; align-items: stretch; }
-  .fastfetch-logo { margin: 0 auto; }
+  .tiles.tiles-2 { grid-template-columns: 1fr; }
+  .donut-row, .gauge-row { flex-direction: column; align-items: stretch; }
+  .donut { align-self: center; }
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -577,7 +619,10 @@ body::after {
   <div id="view-dashboard">
     <header class="dash-head">
       <div class="dash-title">
-        <h2>Real-time monitoring</h2>
+        <div class="dash-heading">
+          <h2 id="page-title">System</h2>
+          <div id="page-sub" class="page-sub">host · kernel · memory · cpu</div>
+        </div>
         <span class="live">live</span>
       </div>
       <div class="dash-meta">
@@ -591,9 +636,9 @@ body::after {
     <div id="kpis" class="kpi-row"></div>
 
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="system" role="tab" type="button">system</button>
-      <button class="tab" data-tab="pools" role="tab" type="button">pools</button>
-      <button class="tab" data-tab="arc" role="tab" type="button">arc cache</button>
+      <button class="tab active" data-tab="system" data-title="System" data-sub="host · kernel · memory · cpu" role="tab" type="button">system</button>
+      <button class="tab" data-tab="pools" data-title="Pools" data-sub="zfs capacity · fragmentation · vdevs" role="tab" type="button">pools</button>
+      <button class="tab" data-tab="arc" data-title="ARC Cache" data-sub="adaptive replacement cache · live stream" role="tab" type="button">arc cache</button>
     </nav>
 
     <section id="pane-system" class="pane active">
@@ -643,6 +688,23 @@ body::after {
   const THEME_KEY = 'zdash-theme';
   const ICON_SUN = '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>';
   const ICON_MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  const ICONS = {
+    database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+    pieChart: '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+    activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    alertTriangle: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    server: '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+    hardDrive: '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
+    thermometer: '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>'
+  };
+  function iconSVG(name) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`;
+  }
   const root = document.documentElement;
   function applyTheme(theme) {
     root.setAttribute('data-theme', theme);
@@ -726,6 +788,7 @@ body::after {
   let timer = null;
   let activeTab = 'system';
   const caps = { zfs: true, arc: true, smart: false };
+  const state = { latest: { sys: null, pools: null, arc: null, smart: null } };
   const hitHistory = [];
   const missHistory = [];
   const sizeHistory = [];
@@ -784,6 +847,15 @@ body::after {
 
   function pct(n, d) { return d ? Math.min((n / d) * 100, 100) : 0; }
 
+  /* error state markup: alert icon + message + detail */
+  function stateErr(msg, detail) {
+    return `<div class="state-err">
+      ${iconSVG('alertTriangle')}
+      <div class="err">${escapeHTML(msg)}</div>
+      ${detail ? `<div class="err-detail">${escapeHTML(detail)}</div>` : ''}
+    </div>`;
+  }
+
   function escapeHTML(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -837,61 +909,6 @@ body::after {
       </svg>`;
   }
 
-  /* ── signature: spinning disk platter ────────────────────── */
-  function platterSVG(capPct, healthState) {
-    const size = 130;
-    const cx = size / 2;
-    const stroke = 8;
-    const r = (size - stroke) / 2 - 2;
-    const c = 2 * Math.PI * r;
-    const fillLen = (Math.min(capPct, 100) / 100) * c;
-    const capColor = capPct > 90 ? 'var(--c-red)' : capPct > 75 ? 'var(--c-amber)' : 'var(--c-amber-soft)';
-    // concentric tracks
-    let tracks = '';
-    for (let i = 1; i <= 4; i++) {
-      const tr = r - (i * 8);
-      if (tr < 8) break;
-      tracks += `<circle cx="${cx}" cy="${cx}" r="${tr}" fill="none" style="stroke:var(--disk-t1)" stroke-width="0.6"/>`;
-    }
-    // sector ticks
-    let ticks = '';
-    for (let a = 0; a < 360; a += 30) {
-      const rad = (a - 90) * Math.PI / 180;
-      const x1 = cx + Math.cos(rad) * (r - 2);
-      const y1 = cx + Math.sin(rad) * (r - 2);
-      const x2 = cx + Math.cos(rad) * (r - 6);
-      const y2 = cx + Math.sin(rad) * (r - 6);
-      ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:var(--disk-t2)" stroke-width="0.7"/>`;
-    }
-    return `
-      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-        <defs>
-          <radialGradient id="pl-grad-${capPct|0}" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="var(--c-amber-soft)" stop-opacity="0.06"/>
-            <stop offset="70%" stop-color="var(--c-amber-soft)" stop-opacity="0.02"/>
-            <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
-          </radialGradient>
-        </defs>
-        <circle cx="${cx}" cy="${cx}" r="${r + 2}" fill="url(#pl-grad-${capPct|0})" style="stroke:var(--disk-t3)" stroke-width="1"/>
-        <g class="spin">
-          ${tracks}
-          ${ticks}
-          <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" style="stroke:var(--disk-t2)" stroke-width="0.6" stroke-dasharray="2 4"/>
-          <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke-width="${stroke}"
-            style="stroke:${capColor};stroke-dasharray:${fillLen} ${c - fillLen};filter:drop-shadow(0 0 5px ${capColor})"/>
-          <circle cx="${cx}" cy="${cx}" r="${r - 14}" fill="none" stroke-width="2"
-            stroke-dasharray="${fillLen * 0.6} ${c * 0.6}" stroke-dashoffset="0" opacity="0.5"
-            style="stroke:${capColor}"/>
-        </g>
-        <circle cx="${cx}" cy="${cx}" r="6" fill="${capColor}" style="filter: drop-shadow(0 0 4px ${capColor});"/>
-        <circle cx="${cx}" cy="${cx}" r="2" fill="var(--bg-0)"/>
-        <g class="head">
-          <line x1="${cx - size * 0.42}" y1="${cx}" x2="${cx - 4}" y2="${cx}" stroke-width="2" opacity="0.7" style="stroke:${capColor}"/>
-          <rect x="${cx - 8}" y="${cx - 3}" width="6" height="6" fill="${capColor}" opacity="0.85" style="filter: drop-shadow(0 0 3px ${capColor});"/>
-        </g>
-      </svg>`;
-  }
-
   /* colors used across generated markup (theme-token based) */
   const C = {
     green: 'var(--c-green)',
@@ -903,53 +920,132 @@ body::after {
   };
 
   /* ── tab switching (event delegation so dynamic SMART tabs work) ── */
+  function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTab = tabId;
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    const pane = document.getElementById('pane-' + tabId);
+    if (pane) pane.classList.add('active');
+    const titleEl = document.getElementById('page-title');
+    const subEl = document.getElementById('page-sub');
+    if (titleEl) titleEl.textContent = btn.dataset.title || tabId;
+    if (subEl) subEl.textContent = btn.dataset.sub || '';
+    renderKPIs();
+  }
+
   document.querySelector('.tabs').addEventListener('click', (ev) => {
     const btn = ev.target.closest('.tab');
     if (!btn || btn.hidden) return;
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
-    activeTab = btn.dataset.tab;
-    const pane = document.getElementById('pane-' + activeTab);
-    if (pane) pane.classList.add('active');
+    switchTab(btn.dataset.tab, btn);
   });
 
-  /* ── KPI summary strip + landing stats ───────────────────── */
-  function renderKPIs(pools, arc) {
+  /* ── KPI summary strip (per-tab, driven by cached latest data) ── */
+  function renderKPIs() {
     const el = document.getElementById('kpis');
+    if (!el) return;
     const kpis = [];
+    const group = (activeTab || 'system').split('-')[0];
+    const { sys, pools, arc, smart } = state.latest;
 
-    if (caps.zfs) {
-      let poolCount = 0, onlineCount = 0, totalCap = 0, countCap = 0;
-      if (pools && pools.pools) {
-        poolCount = Object.keys(pools.pools).length;
-        for (const p of Object.values(pools.pools)) {
-          if ((p.state || '').toUpperCase() === 'ONLINE') onlineCount++;
-          const cap = parseFloat(p.properties?.capacity?.value) || 0;
-          totalCap += cap; countCap++;
-        }
-      }
-      const avgCap = countCap ? (totalCap / countCap) : 0;
-      kpis.push({ accent: 'pool', label: 'pools', value: poolCount || '—', sub: `${onlineCount} online`, bar: 100 });
-      kpis.push({ accent: 'pool', label: 'avg capacity', value: poolCount ? avgCap.toFixed(1) + '%' : '—', sub: 'across all pools', bar: avgCap });
+    if (group === 'system' && sys) {
+      kpis.push({
+        icon: 'clock', accent: 'pool', label: 'uptime', txt: true,
+        value: escapeHTML(sys.uptime || '—'),
+        sub: sys.boot_time ? 'since ' + new Date(sys.boot_time * 1000).toLocaleDateString() : 'boot time unknown'
+      });
+      kpis.push({
+        icon: 'layers', accent: 'pool', label: 'processes',
+        value: sys.processes ? sys.processes.toLocaleString() : '—',
+        sub: sys.machine || '—'
+      });
+      kpis.push({
+        icon: 'globe', accent: 'info', label: 'network', txt: true,
+        value: escapeHTML(sys.net_ipv4 || sys.net_iface || '—'),
+        sub: sys.net_ipv4 && sys.net_iface ? sys.net_iface : (sys.hostname || '—')
+      });
     }
 
-    if (caps.arc && arc) {
+    if (group === 'pools' && pools && pools.pools) {
+      const entries = Object.entries(pools.pools);
+      let online = 0, capSum = 0, capN = 0, worstFrag = -1, worstName = '—', degraded = 0;
+      for (const [name, p] of entries) {
+        if ((p.state || '').toUpperCase() === 'ONLINE') online++; else degraded++;
+        const cap = parseFloat(p.properties?.capacity?.value) || 0;
+        capSum += cap; capN++;
+        const frag = parseFloat(p.properties?.fragmentation?.value) || 0;
+        if (frag > worstFrag) { worstFrag = frag; worstName = name; }
+      }
+      const avgCap = capN ? (capSum / capN) : 0;
+      kpis.push({ icon: 'database', accent: 'pool', label: 'pool count', value: entries.length || '—', sub: online + ' online' });
+      kpis.push({
+        icon: 'pieChart', label: 'avg capacity', value: entries.length ? avgCap.toFixed(1) + '%' : '—',
+        sub: 'across all pools', bar: avgCap,
+        accent: avgCap > 90 ? 'err' : avgCap > 75 ? 'warn' : 'pool'
+      });
+      kpis.push({
+        icon: 'activity', label: 'worst frag', value: worstFrag >= 0 ? worstFrag.toFixed(0) + '%' : '—',
+        sub: worstName, bar: Math.max(worstFrag, 0),
+        accent: worstFrag > 50 ? 'warn' : 'ok'
+      });
+      kpis.push({
+        icon: 'shield', label: 'health', value: degraded ? degraded + ' degraded' : 'All OK',
+        sub: online + ' pools online',
+        accent: degraded ? 'err' : 'ok'
+      });
+    }
+
+    if (group === 'arc' && arc) {
       const total = arc.hits + arc.misses;
-      const hitRatio = total ? (arc.hits / total * 100) : 0;
-      kpis.push({ accent: 'hit', label: 'arc hit ratio', value: hitRatio.toFixed(2) + '%', sub: fmtNum(arc.hits) + ' hits', bar: hitRatio });
-      kpis.push({ accent: 'miss', label: 'arc misses', value: fmtNum(arc.misses), sub: 'since load', bar: Math.min(arc.misses / (total || 1) * 100, 100) });
-      kpis.push({ accent: 'size', label: 'arc size', value: fmtBytes(arc.size), sub: 'max ' + fmtBytes(arc.c_max), bar: arc.c_max ? (arc.size / arc.c_max * 100) : 0 });
-      const used = arc.c_max ? (arc.size / arc.c_max * 100) : 0;
-      kpis.push({ accent: 'arc', label: 'arc utilization', value: used.toFixed(1) + '%', sub: fmtBytes(arc.c) + ' target', bar: used });
+      const hitPct = total ? (arc.hits / total * 100) : 0;
+      kpis.push({
+        icon: 'zap', label: 'hit ratio', value: hitPct.toFixed(2) + '%',
+        sub: fmtNum(arc.hits) + ' hits', bar: hitPct,
+        accent: hitPct > 70 ? 'ok' : hitPct > 40 ? 'warn' : 'err'
+      });
+      kpis.push({ icon: 'alertTriangle', accent: 'err', label: 'misses', value: fmtNum(arc.misses), sub: 'since module load' });
+      kpis.push({
+        icon: 'server', accent: 'info', label: 'arc size', value: fmtBytes(arc.size),
+        sub: 'of ' + fmtBytes(arc.c_max) + ' max', bar: arc.c_max ? pct(arc.size, arc.c_max) : 0
+      });
+      kpis.push({ icon: 'database', accent: 'violet', label: 'target size', value: fmtBytes(arc.c), sub: 'min ' + fmtBytes(arc.c_min) });
+      kpis.push({ icon: 'layers', accent: 'pool', label: 'evicted', value: fmtNum(arc.deleted), sub: 'blocks since load' });
+    }
+
+    if (group === 'smart' && smart && smart.devices && smart.devices.length) {
+      const devs = smart.devices;
+      const probed = devs.filter(d => d.details);
+      const passed = probed.filter(d => d.details.smart_passed).length;
+      const unhealthy = probed.filter(d => healthClassForSmart(d.details) !== 'b-online').length;
+      const temps = probed.map(d => d.details.temperature_current).filter(t => t > 0);
+      const avgTemp = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+      let oldestPoh = 0, oldestName = '—';
+      for (const d of probed) {
+        if (d.details.power_on_hours > oldestPoh) { oldestPoh = d.details.power_on_hours; oldestName = d.name; }
+      }
+      kpis.push({ icon: 'hardDrive', accent: 'pool', label: 'drives', value: devs.length, sub: passed + ' passed SMART' });
+      kpis.push({
+        icon: 'shield', label: 'health', value: unhealthy ? unhealthy + ' warning' : 'All healthy',
+        sub: probed.length + ' probed',
+        accent: unhealthy ? 'err' : 'ok'
+      });
+      kpis.push({
+        icon: 'thermometer', label: 'avg temp', value: avgTemp != null ? avgTemp.toFixed(1) + '°C' : '—',
+        sub: temps.length + ' drives reporting', bar: avgTemp != null ? Math.min(avgTemp, 100) : null,
+        accent: avgTemp == null ? 'pool' : avgTemp >= 60 ? 'err' : avgTemp >= 45 ? 'warn' : 'ok'
+      });
+      kpis.push({
+        icon: 'clock', accent: 'pool', label: 'oldest POH', value: oldestPoh ? fmtNum(oldestPoh) + ' h' : '—',
+        sub: oldestName
+      });
     }
 
     el.innerHTML = kpis.map(k => `
       <div class="kpi" data-accent="${k.accent}">
-        <div class="kpi-label">${k.label}</div>
-        <div class="kpi-value">${k.value}</div>
+        <div class="kpi-head"><span class="kpi-icon">${iconSVG(k.icon)}</span><span class="kpi-label">${k.label}</span></div>
+        <div class="kpi-value${k.txt ? ' txt' : ''}">${k.value}</div>
         <div class="kpi-sub">${k.sub}</div>
-        <div class="kpi-bar" style="width:${Math.min(k.bar, 100).toFixed(1)}%"></div>
+        ${k.bar != null ? `<div class="kpi-bar" style="width:${Math.min(k.bar, 100).toFixed(1)}%"></div>` : ''}
       </div>`).join('');
   }
 
@@ -1017,15 +1113,19 @@ body::after {
 
   function renderSys(s) {
     const grid = document.getElementById('sys-grid');
-    const state = document.getElementById('sys-state');
-    state.innerHTML = '';
+    const stateEl = document.getElementById('sys-state');
+    stateEl.innerHTML = '';
     if (!s) { grid.innerHTML = ''; return; }
 
     const osLabel = s.os || s.os_id || (s.kernel || 'unknown');
     const kernelFull = [s.kernel, s.kernel_release].filter(Boolean).join(' ');
     const memUsedPct = s.memory_total_bytes
       ? (s.memory_used_bytes / s.memory_total_bytes * 100) : 0;
+    const memCachedPct = s.memory_total_bytes
+      ? (s.memory_cached_bytes / s.memory_total_bytes * 100) : 0;
+    const memFreePct = Math.max(100 - memUsedPct - memCachedPct, 0);
     const memColor = memUsedPct > 90 ? C.red : memUsedPct > 75 ? C.amber : C.amberSoft;
+    const memBadge = memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online';
     const loadStr = (s.load1 != null && s.load1 !== 0)
       ? `${s.load1.toFixed(2)} ${s.load5.toFixed(2)} ${s.load15.toFixed(2)}`
       : '—';
@@ -1045,81 +1145,92 @@ body::after {
       : '—';
     const osFull = escapeHTML(osLabel);
 
-    /* Split the fastfetch rows into two columns: identity (left) and
-       runtime (right) for a denser, more scannable host card. */
+    const dashUp = document.getElementById('dash-uptime');
+    if (dashUp) dashUp.textContent = (s.uptime || '—') + ' uptime';
+
+    const brandHostEl = document.getElementById('brand-host');
+    if (brandHostEl) {
+      brandHostEl.textContent = s.fqdn ? `@${s.fqdn}` : `@${s.hostname || 'host'}`;
+    }
+
+    /* Identity (left) and runtime (right) key/value columns of the host card. */
     const idRows = [
       ffRow('OS', osFull),
       ffRow('Host', escapeHTML(s.hostname || '—')),
       ffRow('Hardware', escapeHTML(hostStr)),
       ffRow('Machine', escapeHTML(s.machine || '—')),
-      ffRow('Locale', escapeHTML(s.locale || '—')),
       ffRow('Network', netStr),
     ];
     const rtRows = [
       ffRow('Kernel', escapeHTML(kernelFull || '—')),
       ffRow('Kernel ver', escapeHTML(s.kernel_version || '—')),
       ffRow('Uptime', escapeHTML(s.uptime || '—')),
-      ffRow('Procs', escapeHTML(s.processes ? s.processes.toLocaleString() : '—')),
+      ffRow('Procs', s.processes ? s.processes.toLocaleString() : '—'),
       ffRow('CPU', `${escapeHTML(s.cpu_model || '—')} <span class="ff-sep">·</span> ${coresStr} cores`),
       ffRow('Memory',
         `${fmtBytes(s.memory_used_bytes)} / ${fmtBytes(s.memory_total_bytes)}` +
         (s.memory_total_bytes
           ? ` <span class="ff-bar bar"><span class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},var(--c-amber-soft))"></span></span>`
           : '')),
-      ffRow('Swap', escapeHTML(swapStr)),
     ];
 
-    const uptime = s.uptime || '—';
-    const dashUp = document.getElementById('dash-uptime');
-    if (dashUp) dashUp.textContent = uptime + ' uptime';
-
-    const brandHostEl = document.getElementById('brand-host');
-    const host = s.hostname || 'host';
-    const fqdn = s.fqdn || '';
-    if (brandHostEl) {
-      const label = fqdn ? `@${fqdn}` : `@${host}`;
-      brandHostEl.textContent = label;
-    }
-
     grid.innerHTML = `
-      <div class="card sys-host-card" style="grid-column:1 / -1">
-        <div class="fastfetch">
+      <div class="card col-7">
+        <div class="host-card-head">
           <div class="fastfetch-logo">${osLogoSVG(s.os_id)}</div>
-          <div class="fastfetch-rows">
-            <div class="ff-title">${escapeHTML(osLabel)} <span class="ff-host">@ ${escapeHTML(s.hostname || 'host')}</span></div>
-            <div class="ff-cols">
-              <div class="ff-col">${idRows.join('')}</div>
-              <div class="ff-col">${rtRows.join('')}</div>
-            </div>
+          <div class="host-head-text">
+            <div class="host-name">${escapeHTML(s.hostname || 'host')}</div>
+            <div class="host-os">${osFull} <span class="ff-sep">·</span> ${escapeHTML(kernelFull || s.kernel_release || '—')}</div>
           </div>
         </div>
+        <div class="ff-cols kv-list">
+          <div class="ff-col">${idRows.join('')}</div>
+          <div class="ff-col">${rtRows.join('')}</div>
+        </div>
       </div>
-      <div class="card">
+
+      <div class="card col-5">
         <div class="card-head"><span class="card-title">Uptime</span>
           <span class="badge ${s.uptime_seconds > 0 ? 'b-online' : 'b-offline'}">live</span></div>
+        <div class="uptime-hero">${escapeHTML(s.uptime || '—')}</div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">Up</div><div class="tile-value cyan">${escapeHTML(s.uptime || '—')}</div></div>
           <div class="tile"><div class="tile-label">Since</div><div class="tile-value violet">${s.boot_time ? new Date(s.boot_time * 1000).toLocaleDateString() : '—'}</div></div>
           <div class="tile"><div class="tile-label">Procs</div><div class="tile-value mint">${s.processes ? s.processes.toLocaleString() : '—'}</div></div>
+          <div class="tile"><div class="tile-label">Network</div><div class="tile-value cyan" style="font-size:0.8rem">${netStr}</div></div>
         </div>
-        <div class="muted-note">net ${netStr}</div>
       </div>
-      <div class="card">
+
+      <div class="card col-6" data-accent="arc">
         <div class="card-head"><span class="card-title">Memory</span>
-          <span class="badge ${memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online'}">${memUsedPct.toFixed(0)}%</span>
+          <span class="badge ${memBadge}">${memUsedPct.toFixed(0)}%</span>
         </div>
-        <div class="tiles">
-          <div class="tile"><div class="tile-label">Used</div><div class="tile-value amber">${fmtBytes(s.memory_used_bytes)}</div></div>
-          <div class="tile"><div class="tile-label">Available</div><div class="tile-value mint">${fmtBytes(s.memory_available_bytes)}</div></div>
-          <div class="tile"><div class="tile-label">Total</div><div class="tile-value cyan">${fmtBytes(s.memory_total_bytes)}</div></div>
+        <div class="donut-row">
+          <div class="donut">
+            ${donutSVG([
+              { value: memUsedPct, color: C.amberSoft },
+              { value: memCachedPct, color: C.cyan },
+              { value: memFreePct, color: 'var(--bar-bg)' }
+            ])}
+            <div class="donut-center">
+              <div class="donut-pct" style="color:${memColor}">${memUsedPct.toFixed(0)}%</div>
+              <div class="donut-label">used</div>
+            </div>
+          </div>
+          <div class="legend">
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Used<span class="leg-val">${fmtBytes(s.memory_used_bytes)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Cached<span class="leg-val">${fmtBytes(s.memory_cached_bytes)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:var(--bar-bg)"></span>Free<span class="leg-val">${fmtBytes(s.memory_available_bytes)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.purple}"></span>Total<span class="leg-val">${fmtBytes(s.memory_total_bytes)}</span></div>
+          </div>
         </div>
         <div class="bar-wrap">
           <div class="bar-head"><span>Used</span><span>${memUsedPct.toFixed(1)}%</span></div>
           <div class="bar"><div class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},var(--c-amber-soft))"></div></div>
         </div>
-        <div class="muted-note">cached ${fmtBytes(s.memory_cached_bytes)} · swap ${escapeHTML(swapStr)}</div>
+        <div class="muted-note">swap ${escapeHTML(swapStr)}</div>
       </div>
-      <div class="card">
+
+      <div class="card col-6" data-accent="arc">
         <div class="card-head"><span class="card-title">CPU</span>
           <span class="badge b-online">${coresStr} cores</span></div>
         <div class="tiles">
@@ -1128,12 +1239,12 @@ body::after {
           <div class="tile"><div class="tile-label">Arch</div><div class="tile-value violet">${escapeHTML(s.machine || '—')}</div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Frequency (cur / max)</span><span>${escapeHTML(freqStr)}</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${s.cpu_max_mhz ? Math.min(s.cpu_freq_mhz / s.cpu_max_mhz * 100, 100) : 0}%;background:linear-gradient(90deg,${C.cyan},${C.amberSoft})"></div></div>
-        </div>
-        <div class="bar-wrap">
           <div class="bar-head"><span>Load avg (1 / 5 / 15 min)</span><span>${escapeHTML(loadStr)}</span></div>
           <div class="bar"><div class="bar-fill" style="width:${s.cpu_cores ? Math.min(s.load1 / s.cpu_cores * 100, 100) : 0}%;background:linear-gradient(90deg,${C.green},${C.cyan})"></div></div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-head"><span>Frequency (cur / max)</span><span>${escapeHTML(freqStr)}</span></div>
+          <div class="bar"><div class="bar-fill" style="width:${s.cpu_max_mhz ? Math.min(s.cpu_freq_mhz / s.cpu_max_mhz * 100, 100) : 0}%;background:linear-gradient(90deg,${C.cyan},${C.amberSoft})"></div></div>
         </div>
         <div class="muted-note">${escapeHTML(s.kernel || '')} ${escapeHTML(s.kernel_release || '')}</div>
       </div>`;
@@ -1145,13 +1256,15 @@ body::after {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      state.latest.sys = data;
       applyCaps(data);
       renderSys(data);
       return data;
     } catch (err) {
+      state.latest.sys = null;
       const el = document.getElementById('sys-state');
       document.getElementById('sys-grid').innerHTML = '';
-      el.innerHTML = `<div class="err">⚠ failed to load system data<div class="err-detail">${escapeHTML(err.message)}</div></div>`;
+      el.innerHTML = stateErr('failed to load system data', err.message);
       return null;
     }
   }
@@ -1161,14 +1274,16 @@ body::after {
     if (!vdevs) return '';
     let html = '';
     for (const [name, v] of Object.entries(vdevs)) {
-      const indent = depth * 16;
+      const indent = Math.min(depth, 3) * 16;
       const hc = healthBadge(v.state);
       const size = v.properties?.size?.value || '—';
       const path = v.path || 'N/A';
+      const type = v.vdev_type || 'vdev';
       html += `
         <div class="vdev" style="margin-left:${indent}px">
           <span class="vdev-name">${escapeHTML(name)}</span>
           <div class="vdev-info">
+            <span class="type-chip">${escapeHTML(type)}</span>
             <span class="badge ${hc}">${escapeHTML(v.state)}</span>
             <span>${escapeHTML(size)}</span>
             <span style="font-size:0.66rem;opacity:0.65">${escapeHTML(path)}</span>
@@ -1192,20 +1307,29 @@ body::after {
         : `linear-gradient(90deg,${C.amberSoft},${C.cyan})`;
 
     return `
-      <div class="card platter-card" data-accent="pool">
+      <div class="card col-6" data-accent="pool">
         <div class="card-head">
           <span class="card-title">${escapeHTML(name)}</span>
-          <span class="badge ${hc}">${escapeHTML(pool.state)}</span>
+          <span class="head-badges">
+            <span class="badge b-neutral">${escapeHTML(pool.type || '—')}</span>
+            <span class="badge ${hc}">${escapeHTML(pool.state)}</span>
+          </span>
         </div>
-        <div class="platter-stage">
-          <div class="platter" title="capacity ${cap.toFixed(1)}%">
-            ${platterSVG(cap, pool.state)}
+        <div class="gauge-row">
+          <div class="donut">
+            ${donutSVG([
+              { value: cap, color: capColor },
+              { value: Math.max(100 - cap, 0), color: 'var(--bar-bg)' }
+            ])}
+            <div class="donut-center">
+              <div class="donut-pct" style="color:${capColor}">${cap.toFixed(1)}%</div>
+              <div class="donut-label">used</div>
+            </div>
           </div>
-          <div class="platter-info">
-            <div class="pi-row"><span>total</span><span>${escapeHTML(pool.properties.size.value)}</span></div>
-            <div class="pi-row"><span>allocated</span><span>${escapeHTML(pool.properties.allocated.value)}</span></div>
-            <div class="pi-row"><span>free</span><span>${escapeHTML(pool.properties.free.value)}</span></div>
-            <div class="pi-row"><span>capacity</span><span style="color:${capColor}">${cap.toFixed(1)}%</span></div>
+          <div class="legend">
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Total<span class="leg-val">${escapeHTML(pool.properties.size.value)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${capColor}"></span>Allocated<span class="leg-val">${escapeHTML(pool.properties.allocated.value)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Free<span class="leg-val">${escapeHTML(pool.properties.free.value)}</span></div>
           </div>
         </div>
         <div class="bar-wrap">
@@ -1229,12 +1353,14 @@ body::after {
       const res = await fetch('/api/zpool');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
+      state.latest.pools = data;
       renderPools(data);
       return data;
     } catch (err) {
+      state.latest.pools = null;
       const el = document.getElementById('pools-state');
       document.getElementById('pools-grid').innerHTML = '';
-      el.innerHTML = `<div class="err">⚠ failed to load pool data<div class="err-detail">${escapeHTML(err.message)}</div></div>`;
+      el.innerHTML = stateErr('failed to load pool data', err.message);
       return null;
     }
   }
@@ -1372,7 +1498,7 @@ body::after {
 
     grid.innerHTML = `
       <!-- Hit ratio donut card -->
-      <div class="card" data-accent="arc">
+      <div class="card col-6" data-accent="arc">
         <div class="card-head"><span class="card-title">Cache Hit Ratio</span>
           <span class="badge ${hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline'}">${hitPct.toFixed(2)}%</span>
         </div>
@@ -1398,7 +1524,7 @@ body::after {
       </div>
 
       <!-- ARC size card -->
-      <div class="card" data-accent="arc">
+      <div class="card col-6" data-accent="arc">
         <div class="card-head"><span class="card-title">ARC Memory</span>
           <span class="badge b-online">${sizePct.toFixed(0)}% full</span>
         </div>
@@ -1428,7 +1554,7 @@ body::after {
       </div>
 
       <!-- MRU vs MFU card -->
-      <div class="card" data-accent="arc">
+      <div class="card col-4" data-accent="arc">
         <div class="card-head"><span class="card-title">MRU vs MFU Hits</span></div>
         <div class="donut-row">
           <div class="donut">
@@ -1451,9 +1577,9 @@ body::after {
       </div>
 
       <!-- Demand vs Prefetch card -->
-      <div class="card" data-accent="arc">
+      <div class="card col-4" data-accent="arc">
         <div class="card-head"><span class="card-title">Demand vs Prefetch</span></div>
-        <div class="tiles">
+        <div class="tiles tiles-2">
           <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value mint">${fmtNum(demHits)}</div></div>
           <div class="tile"><div class="tile-label">Demand Miss</div><div class="tile-value crimson">${fmtNum(demMisses)}</div></div>
           <div class="tile"><div class="tile-label">Prefetch Hits</div><div class="tile-value cyan">${fmtNum(preHits)}</div></div>
@@ -1469,7 +1595,7 @@ body::after {
       </div>
 
       <!-- Memory breakdown card -->
-      <div class="card" data-accent="arc">
+      <div class="card col-12" data-accent="arc">
         <div class="card-head"><span class="card-title">Memory Breakdown</span></div>
         <div class="tiles">
           <div class="tile"><div class="tile-label">Data</div><div class="tile-value cyan">${fmtBytes(arc.data_size)}</div></div>
@@ -1478,8 +1604,8 @@ body::after {
         </div>
         <div class="tiles">
           <div class="tile"><div class="tile-label">Dbuf</div><div class="tile-value mint">${fmtBytes(arc.dbuf_size)}</div></div>
-          <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value mint">${fmtBytes(arc.dnode_size)}</div></div>
-          <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value crimson">${fmtBytes(arc.deleted)}</div></div>
+          <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value mint">${fmtBytes(arc.arc_dnode_size)}</div></div>
+          <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value crimson">${fmtNum(arc.deleted)}</div></div>
         </div>
         <div class="bar-wrap">
           <div class="bar-head"><span>System memory available</span><span>${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100).toFixed(1) : 0}%</span></div>
@@ -1490,7 +1616,7 @@ body::after {
 
       <!-- L2ARC card -->
       ${arc.l2_ndev > 0 || arc.l2_size > 0 ? `
-      <div class="card" data-accent="arc">
+      <div class="card col-4" data-accent="arc">
         <div class="card-head"><span class="card-title">L2ARC</span>
           <span class="badge b-online">${arc.l2_ndev} device${arc.l2_ndev !== 1 ? 's' : ''}</span>
         </div>
@@ -1504,7 +1630,7 @@ body::after {
           <div class="bar"><div class="bar-fill" style="width:${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100) : 0}%;background:linear-gradient(90deg,${C.purple},${C.cyan})"></div></div>
         </div>
       </div>` : `
-      <div class="card" data-accent="arc">
+      <div class="card col-4" data-accent="arc">
         <div class="card-head"><span class="card-title">L2ARC</span></div>
         <div class="state" style="padding:30px 10px">no L2ARC device detected</div>
         <div class="muted-note">attach a cache vdev to enable</div>
@@ -1519,12 +1645,14 @@ body::after {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      state.latest.arc = data;
       renderARC(data);
       return data;
     } catch (err) {
+      state.latest.arc = null;
       const el = document.getElementById('arc-state');
       document.getElementById('arc-grid').innerHTML = '';
-      el.innerHTML = `<div class="err">⚠ failed to load ARC data<div class="err-detail">${escapeHTML(err.message)}</div></div>`;
+      el.innerHTML = stateErr('failed to load ARC data', err.message);
       return null;
     }
   }
@@ -1580,7 +1708,7 @@ body::after {
       ? `<span class="badge b-degraded">critical warning 0x${n.critical_warning.toString(16)}</span>`
       : `<span class="badge b-online">healthy</span>`;
     return `
-      <div class="card" data-accent="pool">
+      <div class="card col-6" data-accent="pool">
         <div class="card-head"><span class="card-title">NVMe Health</span>${warnFlags}</div>
         <div class="tiles">
           <div class="tile"><div class="tile-label">Endurance Used</div><div class="tile-value ${endurancePct > 80 ? 'crimson' : endurancePct > 60 ? 'amber' : 'mint'}">${endurancePct}%</div></div>
@@ -1610,10 +1738,70 @@ body::after {
       </div>`;
   }
 
+  /* ATA attribute table: value/worst/thresh are normalized smartctl values,
+     raw is vendor-encoded. Critical IDs (5/197/198) with raw>0 and attrs below
+     threshold or flagged when_failed are highlighted. */
+  function renderATA(details) {
+    const a = details.ata;
+    if (!a || !a.attributes || !a.attributes.length) return '';
+    const criticalIds = [5, 197, 198];
+    const rows = a.attributes.map(attr => {
+      const failed = !!attr.when_failed;
+      const criticalRaw = criticalIds.includes(attr.id) && attr.raw > 0;
+      const belowThresh = attr.thresh > 0 && attr.value <= attr.thresh;
+      const nearThresh = attr.thresh > 0 && (attr.value - attr.thresh) <= 10;
+      let statusTxt = 'OK', statusCls = 't-ok';
+      if (failed) {
+        statusTxt = attr.when_failed === 'failing_now' ? 'FAILING NOW' : 'FAILED PAST';
+        statusCls = 't-crit';
+      } else if (criticalRaw || belowThresh) {
+        statusTxt = criticalRaw ? 'CRITICAL RAW' : 'BELOW THRESH';
+        statusCls = 't-crit';
+      } else if (nearThresh) {
+        statusTxt = 'WATCH';
+        statusCls = 't-warn';
+      }
+      const rowCls = statusCls === 't-crit' ? 'row-crit' : statusCls === 't-warn' ? 'row-warn' : '';
+      const rawTxt = attr.raw_string || fmtNum(attr.raw);
+      return `
+        <tr class="${rowCls}">
+          <td class="attr-id">${attr.id}</td>
+          <td class="attr-name">${escapeHTML(attr.name)}</td>
+          <td>${attr.value}</td>
+          <td>${attr.worst}</td>
+          <td>${attr.thresh}</td>
+          <td class="attr-raw">${escapeHTML(rawTxt)}</td>
+          <td class="${statusCls}">${statusTxt}</td>
+        </tr>`;
+    }).join('');
+    const st = a.self_test || {};
+    const stBadge = st.passed === false
+      ? '<span class="badge b-offline">SELF-TEST FAILED</span>'
+      : st.passed ? '<span class="badge b-online">SELF-TEST PASSED</span>' : '';
+    const stNote = st.status
+      ? `last self-test: ${escapeHTML(st.status)}${st.hours ? ' · ' + fmtNum(st.hours) + 'h ago' : ''}`
+      : '';
+    return `
+      <div class="card col-12" data-accent="pool">
+        <div class="card-head">
+          <span class="card-title">ATA SMART Attributes</span>
+          ${stBadge}
+        </div>
+        ${stNote ? `<div class="muted-note" style="text-align:left;margin:0 0 6px">${stNote}</div>` : ''}
+        <div class="table-scroll">
+          <table class="smart-table">
+            <thead><tr><th>id</th><th>attribute</th><th>value</th><th>worst</th><th>thresh</th><th>raw</th><th>status</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="muted-note">value/worst are normalized (100 = best) · raw values are vendor-encoded</div>
+      </div>`;
+  }
+
   function renderSmartPane(dev, paneEl) {
     const d = dev.details;
     if (!d) {
-      paneEl.innerHTML = `<div class="state"><div class="err">⚠ SMART probe failed<div class="err-detail">${escapeHTML(dev.error || 'unknown error')}</div></div></div>`;
+      paneEl.innerHTML = `<div class="state">${stateErr('SMART probe failed', dev.error || 'unknown error')}</div>`;
       return;
     }
     const hc = healthClassForSmart(d);
@@ -1628,7 +1816,8 @@ body::after {
       ? Math.min((d.temperature_current / d.temperature_critical) * 100, 100) : 0;
 
     paneEl.innerHTML = `
-      <div class="card" style="grid-column:1 / -1">
+    <div class="grid">
+      <div class="card col-12">
         <div class="card-head"><span class="card-title">${escapeHTML(dev.name)} · ${escapeHTML(d.model_name || 'unknown')}</span>${passedBadge}</div>
         <div class="tiles">
           <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan" style="font-size:0.8rem">${escapeHTML(d.model_family || d.model_name || '—')}</div></div>
@@ -1643,7 +1832,7 @@ body::after {
         </div>
       </div>
 
-      <div class="card" data-accent="arc">
+      <div class="card col-6" data-accent="arc">
         <div class="card-head"><span class="card-title">Temperature</span>
           <span class="badge ${d.temperature_critical && d.temperature_current >= d.temperature_critical ? 'b-offline' : d.temperature_warning && d.temperature_current >= d.temperature_warning ? 'b-degraded' : 'b-online'}">${d.temperature_current != null ? d.temperature_current + '°C' : '—'}</span>
         </div>
@@ -1661,13 +1850,15 @@ body::after {
 
       ${d.nvme ? renderNVMeCard(d) : ''}
 
+      ${d.ata ? renderATA(d) : ''}
+
       ${(!d.nvme && !d.ata) ? `
-      <div class="card" data-accent="pool">
+      <div class="card col-12" data-accent="pool">
         <div class="card-head"><span class="card-title">Health Summary</span></div>
         <div class="state" style="padding:30px 10px">no transport-specific health log available for this device</div>
         <div class="muted-note">SCSI/libata devices may not expose SMART attributes</div>
       </div>` : ''}
-    `;
+    </div>`;
   }
 
   function smartSortKey(dev) {
@@ -1676,10 +1867,24 @@ body::after {
     return (isNvme ? '0:' : '1:') + (dev.name || '');
   }
 
+  function setSmartTabMeta(btn, dev) {
+    btn.dataset.title = 'SMART ' + (dev.name || '?');
+    btn.dataset.sub = dev.details
+      ? `${dev.details.model_name || 'unknown model'} · ${fmtBytes(dev.details.capacity_bytes)}`
+      : (dev.error || 'probe failed');
+    if (activeTab === btn.dataset.tab) {
+      const titleEl = document.getElementById('page-title');
+      const subEl = document.getElementById('page-sub');
+      if (titleEl) titleEl.textContent = btn.dataset.title;
+      if (subEl) subEl.textContent = btn.dataset.sub;
+    }
+  }
+
   function ensureSmartTab(dev) {
     const id = 'smart-' + sanitizeTabId(dev.name);
     let btn = smartTabs.get(dev.name);
     if (btn) {
+      setSmartTabMeta(btn, dev);
       const pane = document.getElementById('pane-' + id);
       if (pane) renderSmartPane(dev, pane);
       return btn;
@@ -1698,6 +1903,7 @@ body::after {
       btn.style.opacity = '0.55';
       btn.title = 'SMART probe failed: ' + (dev.error || 'unknown');
     }
+    setSmartTabMeta(btn, dev);
     document.querySelector('.tabs').appendChild(btn);
     const pane = document.createElement('section');
     pane.id = 'pane-' + id;
@@ -1725,6 +1931,7 @@ body::after {
       const res = await fetch('/api/smart');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
+      state.latest.smart = data;
       applySmartCap(data);
       if (!caps.smart || !data.devices || data.devices.length === 0) {
         clearSmartTabs();
@@ -1754,6 +1961,7 @@ body::after {
       }
       return data;
     } catch (err) {
+      state.latest.smart = null;
       applySmartCap({ smartctl_available: false });
       clearSmartTabs();
       return null;
@@ -1769,13 +1977,13 @@ body::after {
     const fab = document.getElementById('fab');
     fab.classList.add('refreshing');
     try {
-      const sys = await fetchSysInfo();
+      await fetchSysInfo();
       const tasks = [];
       tasks.push(caps.zfs ? fetchPools() : Promise.resolve(null));
       tasks.push(caps.arc ? fetchARC() : Promise.resolve(null));
       tasks.push(fetchSmart());
-      const [pools, arc] = await Promise.all(tasks);
-      renderKPIs(pools, arc);
+      await Promise.all(tasks);
+      renderKPIs();
     } finally {
       setTimeout(() => fab.classList.remove('refreshing'), 500);
     }
