@@ -1,3 +1,3 @@
 module paepcke.de/zdash
 
-go 1.26.5
+go 1.26.7
