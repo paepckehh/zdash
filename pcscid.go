@@ -392,10 +392,8 @@ func watchLoop(ctx context.Context, cl *pcsc.Client, env watchEnv, lg *slog.Logg
 		}
 		lg.Debug("pcscd connection lost, reconnecting", "error", err)
 		for {
-			select {
-			case <-ctx.Done():
+			if !sleepCtx(ctx, reconnectDelay) {
 				return
-			case <-time.After(reconnectDelay):
 			}
 			next, dialErr := pcsc.New(env.socketPath, lg)
 			if dialErr != nil {
@@ -537,16 +535,23 @@ func pollLoop(ctx context.Context, cl *pcsc.Client, tracking *readerTracking, en
 // degrading the identity to an ATR derived type level tag.
 func identify(lg *slog.Logger, st pcsc.ReaderState, facts readerFacts, machine string) *Card {
 	cardType := DetectType(st.ATR)
-	card := &Card{Type: cardType, ATR: st.ATR, Reader: st.Reader}
-	uid := facts.uid
-	card.UID = uid
-	if len(uid) > 0 {
-		card.ID = Btag(cardType, uid)
+	card := &Card{Type: cardType, ATR: st.ATR, Reader: st.Reader, UID: facts.uid}
+	if len(card.UID) > 0 {
+		card.ID = Btag(cardType, card.UID)
 		card.Source = "uid"
+		lg.Debug("card inserted",
+			"reader", st.Reader,
+			"id", card.ID,
+			"reader-tag", ReaderTagWithMachine(st.Reader, facts.serial, facts.port, machine),
+			"reader-serial", facts.serial,
+			"reader-port", facts.port,
+			"type", cardType,
+			"source", card.Source,
+			"uid", fmt.Sprintf("% X", card.UID),
+			"atr", fmt.Sprintf("% X", st.ATR),
+			"protocol", protocolName(facts.protocol))
 	} else {
 		card.Source = "none"
-	}
-	if card.Source == "none" {
 		// No valid UID, no btag: the presentation is not reported.
 		// The full reason lives in the uid read trace above (a failed
 		// exchange, a wedged PICC or a random UID), this record adds
@@ -559,23 +564,11 @@ func identify(lg *slog.Logger, st pcsc.ReaderState, facts readerFacts, machine s
 			"reader-serial", facts.serial,
 			"reader-port", facts.port,
 			"type", cardType,
-			"uid", fmt.Sprintf("% X", uid),
+			"uid", fmt.Sprintf("% X", card.UID),
 			"atr", fmt.Sprintf("% X", st.ATR),
 			"protocol", protocolName(facts.protocol),
 			"consequence", "no reader/btag line is printed for this presentation",
 			"note", "the atr would only identify the card type, not the individual card")
-	} else {
-		lg.Debug("card inserted",
-			"reader", st.Reader,
-			"id", card.ID,
-			"reader-tag", ReaderTagWithMachine(st.Reader, facts.serial, facts.port, machine),
-			"reader-serial", facts.serial,
-			"reader-port", facts.port,
-			"type", cardType,
-			"source", card.Source,
-			"uid", fmt.Sprintf("% X", uid),
-			"atr", fmt.Sprintf("% X", st.ATR),
-			"protocol", protocolName(facts.protocol))
 	}
 	return card
 }

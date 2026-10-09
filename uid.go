@@ -92,13 +92,17 @@ func isRandomUID(uid []byte) bool {
 	return len(uid) == 4 && uid[0] == 0x08
 }
 
-// openCard connects to the card currently in reader, with the raw
-// protocol fallback some memory tags need, and insists: the connect is
-// retried a few times with a short pause, because pcscd reports a
-// freshly inserted card present before it is activated and the very
-// first connect can fail while the reader powers the card up. A reader
-// without a present card keeps failing, like a raw Connect.
-func openCard(cl *pcsc.Client, lg *slog.Logger, reader string) (*pcsc.Card, error) {
+// connectInsist connects to the card currently in reader and
+// insists on it: settle pauses before the first attempt (the anti
+// collision rerun of a reset power cycle needs it before the reader
+// reports the card present again), then up to attempts connects run
+// delay apart. A freshly inserted card is not yet activated when
+// pcscd first reports it present, the first connects can fail while
+// the activation settles. Every failed attempt is traced at debug
+// level, so a DEBUG=1 log names the attempt on which the reader
+// recovered.
+func connectInsist(cl *pcsc.Client, lg *slog.Logger, reader string, attempts int, settle, delay time.Duration) (*pcsc.Card, error) {
+	time.Sleep(settle)
 	var err error
 	for attempt := 1; ; attempt++ {
 		var card *pcsc.Card
@@ -107,11 +111,11 @@ func openCard(cl *pcsc.Client, lg *slog.Logger, reader string) (*pcsc.Card, erro
 			return card, nil
 		}
 		lg.Debug("card connect attempt failed",
-			"reader", reader, "attempt", attempt, "error", err)
-		if attempt >= uidReadAttempts {
+			"reader", reader, "attempt", attempt, "budget", attempts, "error", err)
+		if attempt >= attempts {
 			return nil, err
 		}
-		time.Sleep(uidReadDelay)
+		time.Sleep(delay)
 	}
 }
 
@@ -133,30 +137,19 @@ func connectCard(cl *pcsc.Client, reader string) (*pcsc.Card, error) {
 // a contactless reader needs its settle window and several poll
 // cycles before it reports the reset card present again, so a short
 // budget races the reactivation and skips a card that never left (the
-// observed ACR122U no-btag failure). Every attempt is traced at debug
-// level, so a DEBUG=1 log names the attempt on which the reader
-// recovered.
-func reopenCardAfterReset(cl *pcsc.Client, lg *slog.Logger, reader string, round int) (*pcsc.Card, error) {
-	time.Sleep(resetReopenSettle)
-	var err error
-	for attempt := 1; ; attempt++ {
-		var card *pcsc.Card
-		card, err = connectCard(cl, reader)
-		if err == nil {
-			if attempt > 1 {
-				lg.Debug("card back after reset",
-					"reader", reader, "round", round, "attempt", attempt)
-			}
-			return card, nil
-		}
-		lg.Debug("card reopen after reset attempt failed",
-			"reader", reader, "round", round, "attempt", attempt,
-			"budget", resetReopenAttempts, "error", err)
-		if attempt >= resetReopenAttempts {
-			return nil, err
-		}
-		time.Sleep(resetReopenDelay)
-	}
+// observed ACR122U no-btag failure).
+func reopenCardAfterReset(cl *pcsc.Client, lg *slog.Logger, reader string) (*pcsc.Card, error) {
+	return connectInsist(cl, lg, reader, resetReopenAttempts, resetReopenSettle, resetReopenDelay)
+}
+
+// openCard connects to the card currently in reader, with the raw
+// protocol fallback some memory tags need, and insists: the connect is
+// retried a few times with a short pause, because pcscd reports a
+// freshly inserted card present before it is activated and the very
+// first connect can fail while the reader powers the card up. A reader
+// without a present card keeps failing, like a raw Connect.
+func openCard(cl *pcsc.Client, lg *slog.Logger, reader string) (*pcsc.Card, error) {
+	return connectInsist(cl, lg, reader, uidReadAttempts, 0, uidReadDelay)
 }
 
 // transmitUID asks the presented card for its UID over one open card
@@ -304,7 +297,7 @@ func insistUID(cl *pcsc.Client, card *pcsc.Card, lg *slog.Logger, reader string)
 			lg.Debug("card reset disconnect failed",
 				"reader", reader, "round", round, "error", err)
 		}
-		next, err := reopenCardAfterReset(cl, lg, reader, round)
+		next, err := reopenCardAfterReset(cl, lg, reader)
 		if err != nil {
 			lg.Debug("card reopen after reset failed",
 				"reader", reader, "round", round,
