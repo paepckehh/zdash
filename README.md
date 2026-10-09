@@ -4,7 +4,7 @@
 
 **One short, stable ID for every smart card you tap. Any card, any reader, pure Go.**
 
-[![go version](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](#)
+[![go version](https://img.shields.io/badge/go-1.27%2B-00ADD8?logo=go)](#)
 [![cgo](https://img.shields.io/badge/cgo-none-success)](#)
 [![dependencies](https://img.shields.io/badge/dependencies-0-informational)](#)
 [![platform](https://img.shields.io/badge/platform-linux-1793d1?logo=linux)](#)
@@ -292,7 +292,7 @@ The empirical protocol gotchas (header-less responses, the unframed APDU bytes o
 ## Requirements & install
 
 - Linux with `pcscd` running (pcsc-lite 1.8.24+ speaks protocol 4.4/4.5 natively; older daemons are handled through down-negotiation)
-- Go 1.26+ to build (any Go 1.25+ toolchain auto-downloads the pinned version from `go.mod`)
+- Go 1.27+ to build (any Go 1.26+ toolchain auto-downloads the pinned version from `go.mod`)
 - Socket `/run/pcscd/pcscd.comm` (`PCSCLITE_CSOCK_NAME` overrides)
 
 ```console

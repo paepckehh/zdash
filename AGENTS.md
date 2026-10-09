@@ -1,7 +1,7 @@
 # AGENTS.md
 
 `paepcke.de/pcscid` — pure Go, no cgo, Linux only, zero dependencies
-(Go 1.26+). Library plus sample app: a short stable btag per card,
+(Go 1.27+). Library plus sample app: a short stable btag per card,
 reader tags per model, unit and machine, for every card the local
 pcscd manages (NFC, mifare, RFID, eID, contact cards).
 
