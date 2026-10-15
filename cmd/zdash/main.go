@@ -26,11 +26,11 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", zdash.HandleIndex)
-	mux.HandleFunc("/api/zpool", zdash.HandleZPoolAPI)
-	mux.HandleFunc("/api/arc", zdash.HandleARCAPI)
-	mux.HandleFunc("/api/sysinfo", zdash.HandleSysInfoAPI)
-	mux.HandleFunc("/api/smart", zdash.HandleSmartAPI)
+	mux.HandleFunc("GET /", zdash.HandleIndex)
+	mux.HandleFunc("GET /api/zpool", zdash.HandleZPoolAPI)
+	mux.HandleFunc("GET /api/arc", zdash.HandleARCAPI)
+	mux.HandleFunc("GET /api/sysinfo", zdash.HandleSysInfoAPI)
+	mux.HandleFunc("GET /api/smart", zdash.HandleSmartAPI)
 
 	srv := &http.Server{
 		Addr:         addr,

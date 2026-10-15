@@ -264,7 +264,10 @@ func smartctlVersion(v []int) string {
 func fetchSmartScan(ctx context.Context, bin string) (*rawSmartScan, error) {
 	cmd := exec.CommandContext(ctx, bin, "--scan", "--json")
 	out, err := cmd.Output()
-	if err != nil {
+	// smartctl exits non-zero for some conditions while still emitting
+	// valid JSON (mirroring fetchSmartDevice); only a totally empty output
+	// is treated as a scan failure.
+	if err != nil && len(out) == 0 {
 		return nil, fmt.Errorf("smartctl scan exec: %w", err)
 	}
 	var data rawSmartScan
@@ -401,23 +404,21 @@ func HandleSmartAPI(w http.ResponseWriter, r *http.Request) {
 
 	report.SmartctlAvailable = true
 	report.SmartctlVersion = smartctlVersion(scan.Smartctl.Version)
-	report.Devices = make([]SmartDeviceReport, 0, len(scan.Devices))
 
 	// Probe every discovered device in parallel, each with its own timeout so
-	// one sleeping HDD cannot blow the whole request.
-	var mu sync.Mutex
+	// one sleeping HDD cannot blow the whole request. Results land in the
+	// device's scan slot, so the report order is deterministic without a lock.
+	report.Devices = make([]SmartDeviceReport, len(scan.Devices))
 	var wg sync.WaitGroup
-	for _, dev := range scan.Devices {
-		wg.Add(1)
-		go func(d SmartScanDevice) {
-			defer wg.Done()
+	for i, dev := range scan.Devices {
+		wg.Go(func() {
 			dctx, dcancel := context.WithTimeout(ctx, perDeviceTimeout)
 			defer dcancel()
-			details, derr := fetchSmartDevice(dctx, bin, d.Name)
+			details, derr := fetchSmartDevice(dctx, bin, dev.Name)
 			rep := SmartDeviceReport{
-				Name:     d.Name,
-				Type:     d.Type,
-				Protocol: d.Protocol,
+				Name:     dev.Name,
+				Type:     dev.Type,
+				Protocol: dev.Protocol,
 			}
 			if derr != nil {
 				rep.OK = false
@@ -426,10 +427,8 @@ func HandleSmartAPI(w http.ResponseWriter, r *http.Request) {
 				rep.OK = true
 				rep.Details = details
 			}
-			mu.Lock()
-			report.Devices = append(report.Devices, rep)
-			mu.Unlock()
-		}(dev)
+			report.Devices[i] = rep
+		})
 	}
 	wg.Wait()
 

@@ -34,7 +34,7 @@ Guidance for AI agents working in the `zdash` repository — a self-hosted ZFS p
 
 `zdash` is an HTTP server that runs `zpool list -v --json` per request and serves the result either as raw JSON (`/api/zpool`) or as an embedded HTML dashboard (`/`). All HTML/CSS/JS is embedded into the binary via `embed.FS`; there is no frontend build step and no third-party Go dependencies (`go.mod` has zero requires).
 
-Module path: `paepcke.de/zdash`. Targets Linux, FreeBSD, and macOS (any OS with a `zpool` binary). The Go module line is currently `go 1.26.4`.
+Module path: `paepcke.de/zdash`. Targets Linux, FreeBSD, and macOS (any OS with a `zpool` binary). The Go module line is currently `go 1.27.2`.
 
 ## Repository Layout
 
@@ -45,12 +45,14 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 ├── api.go            # zpool scraper + ZPoolOutput/Pool/VDev/Prop types, HandleIndex, HandleZPoolAPI
 ├── arc.go            # ARC kstat scraper (/proc/spl/kstat/zfs/arcstats), HandleARCAPI
 ├── sysinfo.go        # Host snapshot scraper (/proc + /sys), HandleSysInfoAPI
+├── smart.go         # smartctl scraper (--scan + parallel per-device --xall), HandleSmartAPI
 ├── api_test.go       # zpool JSON parsing tests (canned fixtures in testdata/)
 ├── arc_test.go       # ARC kstat parsing tests (canned fixtures in testdata/)
 ├── sysinfo_test.go   # /proc + /sys parser tests (canned fixtures in testdata/)
-├── cmd/zdash/main.go # package main — wires http.Server + routes, reads BIND_ADDR
+├── smart_test.go    # smartctl JSON parsing + handler tests (fixtures in testdata/)
+├── cmd/zdash/main.go # package main — wires http.Server + method-aware routes, reads BIND_ADDR
 ├── embed/index.html  # single-file dashboard (HTML/CSS/JS), served via embed.FS
-├── testdata/         # canned fixtures: sample.json, arcstats, fib_trie, route, ...
+├── testdata/         # canned fixtures: sample.json, arcstats, fib_trie, route, smart_{scan,sda,nvme}.json, ...
 ├── Makefile
 ├── .goreleaser.yml
 └── .github/workflows/  # golang.yml (build/vet), release.yml (goreleaser on v* tags), codeql.yml
@@ -60,7 +62,7 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 
 ## Build, Test, Lint Commands
 
-The test suites (`api_test.go`, `arc_test.go`, `sysinfo_test.go`) use canned fixtures in `testdata/` (`sample.json` for zpool JSON, `arcstats` for the ARC kstat, plus `fib_trie` / `route` for the sysinfo network parser).
+The test suites (`api_test.go`, `arc_test.go`, `sysinfo_test.go`, `smart_test.go`) use canned fixtures in `testdata/` (`sample.json` for zpool JSON, `arcstats` for the ARC kstat, `fib_trie` / `route` for the sysinfo network parser, `smart_scan.json` / `smart_sda.json` / `smart_nvme.json` for the SMART scraper).
 
 From the repo root:
 
@@ -90,13 +92,14 @@ From the repo root:
 
 ## Architecture and Data Flow
 
-1. **Entry** (`cmd/zdash/main.go`): constructs an `http.Server` with explicit read/write/idle timeouts (10s/30s/120s) and registers `/` → `HandleIndex`, `/api/zpool` → `HandleZPoolAPI`, `/api/arc` → `HandleARCAPI`, `/api/sysinfo` → `HandleSysInfoAPI`. Bind address comes from `BIND_ADDR` (default `127.0.0.1:8080`).
+1. **Entry** (`cmd/zdash/main.go`): constructs an `http.Server` with explicit read/write/idle timeouts (10s/30s/120s) and registers method-aware routes (Go 1.22+ `"GET /…"` patterns, so non-GET requests get an automatic 405): `/` → `HandleIndex`, `/api/zpool` → `HandleZPoolAPI`, `/api/arc` → `HandleARCAPI`, `/api/sysinfo` → `HandleSysInfoAPI`, `/api/smart` → `HandleSmartAPI`. Bind address comes from `BIND_ADDR` (default `127.0.0.1:8080`).
 2. **`/` (HandleIndex)** — reads `embed/index.html` from the embedded FS and writes it verbatim. No server-side templating; initial data is fetched by the client.
 3. **`/api/zpool` (HandleZPoolAPI)** — only `GET` is allowed (else `405`). Creates a `5*time.Second` context, locates the `zpool` binary, runs `zpool list -v --json`, unmarshals into `ZPoolOutput`, and returns it as JSON. Failures at either the exec or parse stage return `500` with a small JSON error body; the server never crashes.
 4. **`/api/arc` (HandleARCAPI)** — reads `/proc/spl/kstat/zfs/arcstats`, parses the kstat text format, returns `*ARCMetrics` as JSON (GET only). Same error/JSON conventions as the zpool endpoint.
 5. **`/api/sysinfo` (HandleSysInfoAPI)** — reads `/proc` and `/sys` (OS release, meminfo, CPU info, loadavg, uptime, default route, IPv4, DMI/SMBIOS) and returns a `SysInfo` snapshot as JSON (GET only). On non-Linux OSes or hosts without these files, fields degrade to empty strings/zeros and the endpoint still renders what it can.
-6. **`zpool` binary resolution** (`api.go`): defaults to `zpool` on `$PATH`, but if `/run/current-system/sw/bin/zpool` exists it uses that instead. This is the NixOS-specific path — **do not remove this stat-check**, it is the only thing making the dashboard work on NixOS where `zpool` is not on the default `$PATH`.
-7. **Client side** (`embed/index.html`, ~1500 lines, single file): vanilla JS, no framework. Polls `/api/zpool`, `/api/arc`, and `/api/sysinfo` in parallel on a timer, renders a tabbed dashboard (Pools / ARC Cache / System) with donut charts, sparklines, gradient KPI tiles, and a user-switchable light/dark theme. History for the hit-ratio sparkline is kept in-memory across refreshes.
+6. **`/api/smart` (HandleSmartAPI)** — runs `smartctl --scan --json`, then probes every discovered device with `smartctl --xall --json <dev>` in parallel (one `sync.WaitGroup.Go` goroutine per device, each with a 12s per-device timeout under the 30s request budget). Results land in the device's scan slot so the report order is deterministic without a lock. When smartctl is missing the endpoint still returns `200` with `smartctl_available=false` so the frontend can hide the SMART tabs.
+7. **`zpool` binary resolution** (`api.go`): defaults to `zpool` on `$PATH`, but if `/run/current-system/sw/bin/zpool` exists it uses that instead. This is the NixOS-specific path — **do not remove this stat-check**, it is the only thing making the dashboard work on NixOS where `zpool` is not on the default `$PATH`. The same NixOS special-case exists for `smartctl` in `smart.go`.
+8. **Client side** (`embed/index.html`, single file, ~2000 lines): vanilla JS, no framework. Polls `/api/zpool`, `/api/arc`, `/api/sysinfo`, and `/api/smart` in parallel on a 5s timer (paused while the tab is hidden), renders a tabbed dashboard (System / Pools / ARC Cache / per-drive SMART tabs) with donut charts, sparklines, a live hit/miss stream, gradient KPI tiles with 3D perspective hover, and a user-switchable light/dark theme. Host/distro logos are official brand marks (single-path SVGs sourced from simpleicons.org, embedded inline so the dashboard stays offline-capable; Tux is the fallback). History for the hit-ratio sparkline and the traffic stream is kept in-memory across refreshes.
 
 ## ARC Scraper
 
@@ -138,7 +141,8 @@ From the repo root:
 
 ## Gotchas
 
-- **`go.mod` declares `go 1.26.4`** — a recent Go version. Older toolchains will refuse to build. CI pins `1.26`.
+- **`go.mod` declares `go 1.27.2`** — a recent Go version. Older toolchains will refuse to build. CI pins `1.26`.
+- **The nix LSP may attach to non-nix files and report bogus `syntax_error` diagnostics on `.go`/`.html` files** — these are spurious; trust `go build`/`go vet` instead.
 - **`make check` does not run `golangci-lint` or `staticcheck`** (both are commented out in the Makefile). Run them manually if you want the fuller static-analysis pass.
 - **The `zpool` binary must be executable by the server process** — typically requires root or membership in the `zfs`/`disk` group. On Linux this usually means read access to `/dev/zfs`. The dashboard will return `500` with a permissions hint otherwise.
 - **CodeQL workflow targets `master`** (`.github/workflows/codeql.yml`) while the actual default branch is `main`, so CodeQL never runs on PRs/pushes. Update the branch filter if you want CodeQL coverage.
