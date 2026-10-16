@@ -37,6 +37,8 @@ type idleGate struct {
 	awakeProcs int
 	awakeGC    int
 	grace      time.Duration
+	exitOnIdle bool
+	exit       func()
 	wakeFn     func()
 	sleepFn    func()
 }
@@ -58,6 +60,7 @@ func newIdleGate(wakeFn, sleepFn func()) *idleGate {
 		sleepFn = runtimeSleep
 	}
 	g.wakeFn, g.sleepFn = wakeFn, sleepFn
+	g.exit = func() { os.Exit(0) }
 	return g
 }
 
@@ -102,6 +105,18 @@ func IdleConnState(_ net.Conn, state http.ConnState) { sessions.connState(state)
 // so a freshly started zdash binds its socket without touching zpool,
 // smartctl, /proc or anything else. Call exactly once from main.
 func BootSleep() { sessions.enterSleep() }
+
+// ExitOnIdle terminates the process (status 0) once the last session has
+// closed and the idle grace has passed, instead of staying parked in deep
+// sleep. Intended for systemd socket activation, where the .socket unit
+// restarts the service on demand so idle RAM and CPU drop to zero.
+// The boot-time BootSleep park is never terminal: the pending connection
+// that socket activation started the service for is always served first.
+func ExitOnIdle() {
+	sessions.mu.Lock()
+	defer sessions.mu.Unlock()
+	sessions.exitOnIdle = true
+}
 
 // connState maps http.ConnState transitions onto the connection counter.
 // A connection is counted from StateNew (accept) through StateActive /
@@ -157,6 +172,10 @@ func (g *idleGate) trySleep() {
 	g.sleeping = true
 	log.Printf("💤 no active session — deep sleep")
 	g.sleepFn()
+	if g.exitOnIdle {
+		log.Printf("💤 idle — exiting (socket activation restarts on demand)")
+		g.exit()
+	}
 }
 
 // enterSleep puts the gate into deep sleep immediately, cancelling any

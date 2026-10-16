@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -49,11 +50,33 @@ func main() {
 		IdleTimeout: 30 * time.Second,
 	}
 
+	// Under systemd socket activation systemd holds the bound socket and
+	// starts this process on the first incoming connection; Listen adopts
+	// that socket. Otherwise it binds BIND_ADDR (default 127.0.0.1:8080).
+	ln, err := zdash.Listen(addr)
+	if err != nil {
+		log.Fatalf("⚠️  listen failed: %v", err)
+	}
+	if os.Getenv("ZDASH_EXIT_ON_IDLE") == "1" {
+		// Exit instead of deep-sleeping when the last session closes; the
+		// socket unit restarts the service on demand, so idle RAM/CPU
+		// drop to zero.
+		zdash.ExitOnIdle()
+	}
+
 	// Nothing is fetched at startup: no zpool run, no smartctl probe, no
-	// /proc read. Bind the listener, park the runtime, and wait.
+	// /proc read. Park the runtime and serve.
 	zdash.BootSleep()
-	log.Printf("zdash %s listening on %s (deep-sleep until first connection)", version, addr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	log.Printf("zdash %s listening on %s (deep-sleep until first connection)", version, listenerAddr(ln))
+	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("⚠️  server failed: %v", err)
 	}
+}
+
+// listenerAddr renders the listener address for the startup log.
+func listenerAddr(ln net.Listener) string {
+	if ln == nil {
+		return "systemd socket"
+	}
+	return ln.Addr().String()
 }

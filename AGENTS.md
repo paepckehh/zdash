@@ -48,12 +48,15 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 ├── smart.go         # smartctl scraper (--scan + parallel per-device --xall), HandleSmartAPI, produceSmart
 ├── idle.go          # session tracking via http.ConnState + runtime deep-sleep/wake profiles (idleGate)
 ├── refresher.go     # session-scoped background fetch loop + per-endpoint TTL cache + singleflight
+├── listener.go      # systemd socket activation (LISTEN_FDS/fd 3 adoption) with BIND_ADDR fallback
+├── systemd.nix      # NixOS module: socket-activated, hardened, resource-capped systemd units
 ├── api_test.go       # zpool JSON parsing tests (canned fixtures in testdata/)
 ├── arc_test.go       # ARC kstat parsing tests (canned fixtures in testdata/)
 ├── sysinfo_test.go   # /proc + /sys parser tests (canned fixtures in testdata/)
 ├── smart_test.go    # smartctl JSON parsing + handler tests (fixtures in testdata/)
-├── idle_test.go      # idle gate transition tests (grace timer, wake/sleep cycles)
+├── idle_test.go      # idle gate transition tests (grace timer, wake/sleep cycles, exit-on-idle)
 ├── refresher_test.go # cache / singleflight / background-loop tests
+├── listener_test.go  # socket-activation adoption tests
 ├── cmd/zdash/main.go # package main — wires http.Server + method-aware routes + ConnState hook + BootSleep
 ├── embed/index.html  # single-file dashboard (HTML/CSS/JS), served via embed.FS
 ├── testdata/         # canned fixtures: sample.json, arcstats, fib_trie, route, smart_{scan,sda,nvme}.json, ...
@@ -96,7 +99,7 @@ From the repo root:
 
 ## Architecture and Data Flow
 
-1. **Entry** (`cmd/zdash/main.go`): constructs an `http.Server` with explicit read/write/idle timeouts (read 10s + 5s read-header, write 30s, idle 30s) and registers method-aware routes (Go 1.22+ `"GET /…"` patterns, so non-GET requests get an automatic 405): `/` → `HandleIndex`, `/api/zpool` → `HandleZPoolAPI`, `/api/arc` → `HandleARCAPI`, `/api/sysinfo` → `HandleSysInfoAPI`, `/api/smart` → `HandleSmartAPI`. Bind address comes from `BIND_ADDR` (default `127.0.0.1:8080`). **Nothing is scraped at startup**: after registering routes, main calls `zdash.BootSleep()` and blocks in `ListenAndServe` with the runtime parked (GC off, one OS thread). `http.Server.ConnState` is wired to `zdash.IdleConnState` for session tracking.
+1. **Entry** (`cmd/zdash/main.go`): constructs an `http.Server` with explicit read/write/idle timeouts (read 10s + 5s read-header, write 30s, idle 30s) and registers method-aware routes (Go 1.22+ `"GET /…"` patterns, so non-GET requests get an automatic 405): `/` → `HandleIndex`, `/api/zpool` → `HandleZPoolAPI`, `/api/arc` → `HandleARCAPI`, `/api/sysinfo` → `HandleSysInfoAPI`, `/api/smart` → `HandleSmartAPI`. Bind address comes from `BIND_ADDR` (default `127.0.0.1:8080`) but is only the fallback: `zdash.Listen` (`listener.go`) first tries systemd socket activation (`LISTEN_FDS`/fd 3). **Nothing is scraped at startup**: after registering routes, main calls `zdash.BootSleep()` and blocks in `srv.Serve(ln)` with the runtime parked (GC off, one OS thread). `http.Server.ConnState` is wired to `zdash.IdleConnState` for session tracking. With `ZDASH_EXIT_ON_IDLE=1` the process additionally terminates (exit 0) after the idle deep-sleep transition, letting a systemd `.socket` unit restart it on demand (see `systemd.nix`) so idle RAM/CPU are exactly zero.
 2. **Session lifecycle** (`idle.go`): the package-level `idleGate` (`sessions`) counts live connections via the ConnState hook. First connection → wake: `GOMAXPROCS` restored, GC re-enabled (percent from `GOGC` env, default 100), background refresher started. Last connection closed → after a 3s grace period (cancellable by any reconnect) → deep sleep: `debug.SetGCPercent(-1)`, `debug.FreeOSMemory()` (heap handed back to the OS), `runtime.GOMAXPROCS(1)`, refresher stopped, its cache dropped. Idle CPU while sleeping is effectively zero (only the listener epoll stays armed); the first new connection instantly wakes the process again.
 3. **Background refresher** (`refresher.go`): while a session is active, a loop (5s tick) refreshes every endpoint on its TTL schedule (zpool/arc/sysinfo 6s, smart 60s) so HTTP handlers only copy pre-encoded cached JSON bytes. Concurrent refreshes of one endpoint dedupe into a single fetch (singleflight); a handler hitting a stale/missing entry joins or triggers the in-flight fetch. Fetches run under `context.WithoutCancel` so they survive the disconnecting client that spawned them; waiters whose own context dies fall back to the newest stale snapshot or a 503 JSON error. On session end the loop is stopped and the entry map cleared so the pages are returned to the OS.
 4. **Producers**: each endpoint has a `produce*(ctx) (body []byte, status int)` function (`produceZpool` in `api.go`, `produceARC` in `arc.go`, `produceSysInfo` in `sysinfo.go`, `produceSmart` in `smart.go`) that owns its timeout (5s zpool/arc/sysinfo, 30s smart) and renders the exact cached bytes, including the endpoint-specific error bodies. The `Handle*API` handlers are thin wrappers over `serveRefresh(w, r, key)` in `refresher.go`; new endpoints register in both `ttls` and `defaultProducers`.
@@ -123,6 +126,16 @@ From the repo root:
 - `HandleSysInfoAPI` exposes the snapshot at `/api/sysinfo` (GET only).
 - `resolveSysInfoPath(p)` is a trivial identity function — the proc/sys layout is fixed by the kernel, so (unlike `zpool`) there is no NixOS special-case.
 - On non-Linux OSes the `runtime.GOOS` guards short-circuit most reads to empty values; the endpoint still responds 200 with whatever fields it could populate.
+
+## systemd deployment (systemd.nix)
+
+`systemd.nix` is a NixOS module fragment (consumed by the host's infra flake, hence the `infra` argument) that runs zdash fully socket-activated and hardened:
+
+- `systemd.sockets.zdash` holds the `ListenStream` socket; the service is not started at boot at all — the first dashboard connection activates it.
+- The service runs with `ZDASH_EXIT_ON_IDLE=1`, so it exits (status 0) once the last session closes; `StartLimitIntervalSec = 0` keeps the on-demand restarts from being rate-limited, and the service is deliberately NOT `wantedBy` anything (that would defeat socket activation).
+- Hardening: `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, full kernel/cgroup/hostname/clock protection, `NoNewPrivileges`, `LockPersonality`, `MemoryDenyWriteExecute`, `RestrictNamespaces`, `SystemCallFilter=@system-service`, `RestrictAddressFamilies` to inet/inet6/unix, and `IPAddressDeny=any` with only loopback allowed (the Caddy reverse proxy on the same host).
+- Deliberately NOT restricted (they would break `zpool`/`smartctl` as root): capability bounding set, `@privileged`/`@resources` syscall groups, `PrivateDevices` (raw disks and `/dev/zfs` must stay visible), and `ProcSubset` (`/proc/spl` kstats must stay readable).
+- Resource caps: `Nice=10`, `CPUWeight=10`, `IOWeight=10` (a dashboard must never compete with the storage stack), `MemoryMax=128M`, `TasksMax=32` (main process plus parallel smartctl children).
 
 ## Types and JSON Shape
 

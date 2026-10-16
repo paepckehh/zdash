@@ -158,6 +158,38 @@ func TestIdleGate_HijackedConnectionCounts(t *testing.T) {
 	}
 }
 
+func TestIdleGate_ExitOnIdle(t *testing.T) {
+	g, rec := newTestGate(t)
+	g.exitOnIdle = true
+	exited := make(chan struct{}, 1)
+	g.exit = func() { exited <- struct{}{} }
+	g.enterSleep()
+	rec.waitEvent(t, 1)
+
+	// Boot-time parking must NOT be terminal, even in exit-on-idle mode:
+	// the connection that socket activation started the process for is
+	// always served first.
+	select {
+	case <-exited:
+		t.Fatal("exit fired at boot park, before any session")
+	default:
+	}
+
+	g.connState(http.StateNew)
+	rec.waitEvent(t, 2)
+	g.connState(http.StateClosed)
+	// Deep sleep first, then the exit.
+	rec.waitEvent(t, 3)
+	select {
+	case <-exited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("exit did not fire after idle deep sleep")
+	}
+	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake", "sleep"}) {
+		t.Fatalf("events = %v, want [sleep wake sleep]", got)
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
