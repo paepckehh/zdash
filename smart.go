@@ -1,7 +1,6 @@
 package zdash
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -374,16 +373,20 @@ func parseSmartAll(raw *rawSmartAll) *SmartDetails {
 	return d
 }
 
-// HandleSmartAPI exposes the aggregated SMART snapshot at /api/smart. GET only.
-// When smartctl is missing it returns 200 with smartctl_available=false so the
-// frontend can suppress the SMART tabs without an error banner.
+// HandleSmartAPI exposes the aggregated SMART snapshot at /api/smart. The
+// actual smartctl probing happens in the session-scoped background
+// refresher (see refresher.go); the handler only serves the cached bytes.
+// GET only. When smartctl is missing it returns 200 with
+// smartctl_available=false so the frontend can suppress the SMART tabs
+// without an error banner.
 func HandleSmartAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	serveRefresh(w, r, "smart")
+}
 
-	ctx, cancel := context.WithTimeout(r.Context(), smartTimeout)
+// produceSmart runs the smartctl scan plus per-device --xall probes and
+// renders the API response.
+func produceSmart(ctx context.Context) ([]byte, int) {
+	ctx, cancel := context.WithTimeout(ctx, smartTimeout)
 	defer cancel()
 
 	bin := smartctlResolver()
@@ -396,10 +399,8 @@ func HandleSmartAPI(w http.ResponseWriter, r *http.Request) {
 		log.Printf("⚠️  smartctl scan failed: %v", err)
 		report.SmartctlAvailable = false
 		report.ScanError = err.Error()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(report)
-		return
+		body, _ := json.Marshal(report)
+		return body, http.StatusOK
 	}
 
 	report.SmartctlAvailable = true
@@ -432,9 +433,10 @@ func HandleSmartAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.Wait()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	var buf bytes.Buffer
-	_ = json.NewEncoder(&buf).Encode(report)
-	_, _ = w.Write(buf.Bytes())
+	body, err := json.Marshal(report)
+	if err != nil {
+		log.Printf("⚠️  smart encode failed: %v", err)
+		return errBody("Failed to encode SMART report."), http.StatusInternalServerError
+	}
+	return body, http.StatusOK
 }

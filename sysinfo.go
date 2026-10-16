@@ -269,30 +269,30 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 	return s, nil
 }
 
-// HandleSysInfoAPI exposes a host snapshot as JSON at /api/sysinfo. GET only.
+// HandleSysInfoAPI exposes a host snapshot as JSON at /api/sysinfo. The
+// actual /proc + /sys read happens in the session-scoped background
+// refresher (see refresher.go); the handler only serves the cached bytes.
+// GET only.
 func HandleSysInfoAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	serveRefresh(w, r, "sysinfo")
+}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+// produceSysInfo gathers the host snapshot and renders the API response.
+func produceSysInfo(ctx context.Context) ([]byte, int) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	data, err := fetchSysInfo(ctx)
 	if err != nil {
 		log.Printf("⚠️  sysinfo fetch failed: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to gather system information. The host may not expose /proc (non-Linux).",
-		})
-		return
+		return errBody("Failed to gather system information. The host may not expose /proc (non-Linux)."), http.StatusInternalServerError
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(data)
+	body, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("⚠️  sysinfo encode failed: %v", err)
+		return errBody("Failed to encode system information."), http.StatusInternalServerError
+	}
+	return body, http.StatusOK
 }
 
 // parseOSRelease extracts ID, PRETTY_NAME, VERSION, VERSION_CODENAME, VARIANT,

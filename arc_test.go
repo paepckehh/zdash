@@ -174,6 +174,7 @@ func TestHandleARCAPI_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleARCAPI_ServerError(t *testing.T) {
+	cache.flush()
 	// Override the path resolver indirectly: since resolveARCPath always
 	// returns the fixed /proc path, on a host without ZFS loaded the handler
 	// must return 500, not crash. If the host happens to have ZFS, the

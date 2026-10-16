@@ -225,6 +225,7 @@ func TestHandleSmartAPI_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleSmartAPI_SmartctlMissing(t *testing.T) {
+	cache.flush()
 	if _, err := exec.LookPath("smartctl"); err == nil {
 		t.Skip("smartctl present on host; missing-tool path not testable here")
 	}
@@ -295,6 +296,7 @@ func smartctlStub(t *testing.T) string {
 }
 
 func TestHandleSmartAPI_FullPipeline(t *testing.T) {
+	cache.flush()
 	withSmartctlBin(t, smartctlStub(t))
 	req := httptest.NewRequest(http.MethodGet, "/api/smart", nil)
 	rec := httptest.NewRecorder()

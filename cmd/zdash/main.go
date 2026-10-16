@@ -33,14 +33,26 @@ func main() {
 	mux.HandleFunc("GET /api/smart", zdash.HandleSmartAPI)
 
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:    addr,
+		Handler: mux,
+		// Connection tracking drives the runtime sleep profile: the first
+		// connection wakes the process, the last closed connection puts it
+		// back into deep sleep after a short grace period.
+		ConnState:         zdash.IdleConnState,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		// IdleTimeout drops dormant keep-alive sockets quickly so the
+		// server can go back to sleep while a dashboard tab is merely
+		// hidden (the frontend pauses polling while hidden; the socket
+		// idles out here and the process parks until the tab returns).
+		IdleTimeout: 30 * time.Second,
 	}
 
-	log.Printf("zdash %s listening on %s", version, addr)
+	// Nothing is fetched at startup: no zpool run, no smartctl probe, no
+	// /proc read. Bind the listener, park the runtime, and wait.
+	zdash.BootSleep()
+	log.Printf("zdash %s listening on %s (deep-sleep until first connection)", version, addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("⚠️  server failed: %v", err)
 	}

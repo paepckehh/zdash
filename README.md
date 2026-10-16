@@ -119,7 +119,11 @@ BIND_ADDR=127.0.0.1:8080 go run -race ./cmd/zdash
 
 ## 🧩 Usage
 
-Once running, open `http://<BIND_ADDR>` in your browser. The dashboard polls the API endpoints in the background and re-renders without page reloads. Switch tabs between **Pools**, **ARC Cache**, and **System**, and toggle the light/dark theme from the header.
+Once running, open `http://<BIND_ADDR>` in your browser. The dashboard polls the API endpoints in the background and re-renders without page reloads. Switch tabs between **Pools**, **ARC Cache**, **System**, and the per-drive **SMART** tabs, and toggle the light/dark theme from the header.
+
+The server starts in **deep sleep**: it only binds its listener, runs no `zpool`/`smartctl` subprocesses and reads no `/proc` state at boot. The first browser connection wakes it (restoring the GC and the background refresh loop); once the last HTTP connection closes it returns to deep sleep after a 3-second grace period, dropping the GC, scavenging its heap back to the OS and parking all but one OS thread. Idle CPU is effectively zero.
+
+While a session is active, all API data is fetched by a session-scoped background loop and served from cache, so any number of open dashboard tabs costs one `zpool` run every ~5s (and one `smartctl` sweep per minute) instead of one run per request.
 
 ---
 
@@ -173,11 +177,12 @@ curl -s http://localhost:8080/api/zpool | jq '.pools | keys'
     └───────────────┴──────────────────┘
 ```
 
-1. **Startup** — `cmd/zdash/main.go` constructs an `http.Server` with explicit read/write/idle timeouts and registers all four routes.
-2. **Initial render** — `GET /` serves the embedded dashboard. No server-side templating; the client fetches its own data.
-3. **Client-side refresh** — The dashboard polls `/api/zpool`, `/api/arc`, and `/api/sysinfo` in parallel on a timer and re-renders without reloading.
-4. **Capability gating** — `/api/sysinfo` reports whether `/dev/zfs` and the ARC kstat are present, so the frontend suppresses the Pools and ARC Cache tabs on hosts without a ZFS kernel.
-5. **Graceful degradation** — Failed subprocesses, unparseable files, and missing `/proc` or `/sys` entries degrade to empty fields or JSON error bodies; the server never crashes.
+1. **Startup** — `cmd/zdash/main.go` constructs an `http.Server` with explicit read/write/idle timeouts, registers all routes, wires the `ConnState` session hook, and enters deep sleep (`zdash.BootSleep()`). Nothing is scraped at boot.
+2. **Initial render** — `GET /` serves the embedded dashboard, rendered once and cached. No server-side templating; the client fetches its own data.
+3. **Session lifecycle** — The first connection wakes the process and starts a background refresher (`refresher.go`) that keeps every endpoint's JSON warm on its TTL schedule; the last closed connection stops the loop, drops the cache, disables the GC, scavenges the heap back to the OS and parks all but one OS thread (`idle.go`).
+4. **Client-side refresh** — The dashboard polls `/api/zpool`, `/api/arc`, `/api/sysinfo` and `/api/smart` in parallel on a 5s timer (paused while the tab is hidden); handlers answer instantly from the warmed cache.
+5. **Capability gating** — `/api/sysinfo` reports whether `/dev/zfs` and the ARC kstat are present, so the frontend suppresses the Pools and ARC Cache tabs on hosts without a ZFS kernel.
+6. **Graceful degradation** — Failed subprocesses, unparseable files, and missing `/proc` or `/sys` entries degrade to empty fields or JSON error bodies; the server never crashes.
 
 ---
 
@@ -185,7 +190,7 @@ curl -s http://localhost:8080/api/zpool | jq '.pools | keys'
 
 - **Security** — Exposing zDash to untrusted networks requires a reverse proxy (Nginx / Caddy / Traefik) with authentication. The default `127.0.0.1:8080` bind is safe.
 - **Permissions** — The binary needs read access to `/dev/zfs` (typically via root or membership in the `zfs`/`disk` group). Without it, `/api/zpool` returns `500` with a permissions hint.
-- **Performance** — Every `/api/zpool` request spawns a `zpool` subprocess. Ideal for internal/low-traffic dashboards. For high-frequency polling or large fleets, add a background-refresh goroutine or integrate with `systemd`/`zfs` events instead of hammering the endpoint.
+- **Performance** — API data is fetched by a session-scoped background loop and served from cache: one `zpool` run per ~5s of active session, one `smartctl` sweep per minute, zero subprocesses while nobody is watching. Sleep mode disables the GC, scavenges the heap back to the OS and parks all but one OS thread.
 
 ---
 

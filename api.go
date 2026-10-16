@@ -6,11 +6,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
-	"time"
+	"sync"
 )
 
 //go:embed embed/index.html
@@ -75,13 +74,23 @@ type VDev struct {
 	Vdevs      map[string]VDev `json:"vdevs"`
 }
 
-func HandleIndex(w http.ResponseWriter, r *http.Request) {
+// indexPage renders the dashboard HTML once and caches the result, so
+// serving the page costs a slice copy instead of an embed.FS read plus a
+// bytes.Replace on every request.
+var indexPage = sync.OnceValue(func() []byte {
 	data, err := indexHTML.ReadFile("embed/index.html")
 	if err != nil {
+		return nil
+	}
+	return bytes.Replace(data, []byte("__ZDASH_VERSION__"), []byte(Version), 1)
+})
+
+func HandleIndex(w http.ResponseWriter, r *http.Request) {
+	page := indexPage()
+	if page == nil {
 		http.Error(w, "Internal Server Error: missing embedded resources", http.StatusInternalServerError)
 		return
 	}
-	page := bytes.Replace(data, []byte("__ZDASH_VERSION__"), []byte(Version), 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(page)
@@ -113,27 +122,9 @@ func fetchZpool(ctx context.Context, bin string) (*ZPoolOutput, error) {
 	return &data, nil
 }
 
+// HandleZPoolAPI exposes the pool state as JSON at /api/zpool. The actual
+// zpool run happens in the session-scoped background refresher (see
+// refresher.go); the handler only serves the cached bytes. GET only.
 func HandleZPoolAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	data, err := fetchZpool(ctx, resolveZpoolBin())
-	if err != nil {
-		log.Printf("⚠️  zpool fetch failed: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to execute zpool command. Ensure it's installed and you have sufficient permissions (usually root or zfs group).",
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(data)
+	serveRefresh(w, r, "zpool")
 }

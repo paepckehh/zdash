@@ -159,28 +159,27 @@ func parseARCStats(raw []byte) (*ARCMetrics, error) {
 	return m, nil
 }
 
-// HandleARCAPI exposes ARC cache metrics as JSON at /api/arc. GET only.
+// HandleARCAPI exposes ARC cache metrics as JSON at /api/arc. The actual
+// kstat read happens in the session-scoped background refresher (see
+// refresher.go); the handler only serves the cached bytes. GET only.
 func HandleARCAPI(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	serveRefresh(w, r, "arc")
+}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+// produceARC reads the arcstats kstat and renders the API response.
+func produceARC(ctx context.Context) ([]byte, int) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	data, err := fetchARC(ctx, resolveARCPath())
 	if err != nil {
 		log.Printf("⚠️  arc fetch failed: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to read ARC stats. Ensure ZFS is loaded and /proc/spl/kstat/zfs/arcstats is readable (usually root or zfs group).",
-		})
-		return
+		return errBody("Failed to read ARC stats. Ensure ZFS is loaded and /proc/spl/kstat/zfs/arcstats is readable (usually root or zfs group)."), http.StatusInternalServerError
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(data)
+	body, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("⚠️  arc encode failed: %v", err)
+		return errBody("Failed to encode ARC stats."), http.StatusInternalServerError
+	}
+	return body, http.StatusOK
 }

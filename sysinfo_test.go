@@ -292,6 +292,7 @@ func TestHandleSysInfoAPI_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleSysInfoAPI_GET(t *testing.T) {
+	cache.flush()
 	// On a real host fetchSysInfo never returns an error for GET (only a
 	// canceled context does), so the handler must answer 200 with JSON.
 	req := httptest.NewRequest(http.MethodGet, "/api/sysinfo", nil)
