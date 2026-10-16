@@ -265,6 +265,8 @@ body::after {
   content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--mint);
   box-shadow: var(--glow-mint); animation: pulse 1.8s ease-in-out infinite;
 }
+.live.err { color: var(--crimson); }
+.live.err::before { background: var(--crimson); box-shadow: var(--glow-crimson); animation: none; }
 @keyframes pulse { 0%,100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.15); } }
 .theme-toggle {
   appearance: none; cursor: pointer;
@@ -422,6 +424,7 @@ body::after {
 .donut-row { display: flex; align-items: center; gap: 22px; }
 .donut { position: relative; width: 132px; height: 132px; flex-shrink: 0; filter: drop-shadow(0 12px 20px rgba(0,0,0,0.35)); }
 .donut svg { transform: rotate(-90deg); }
+.donut circle { transition: stroke-dasharray .7s cubic-bezier(0.4,0,0.2,1), stroke-dashoffset .7s cubic-bezier(0.4,0,0.2,1); }
 .donut::after {
   content: ""; position: absolute; left: 16%; right: 16%; bottom: -12px; height: 11px; border-radius: 50%;
   background: radial-gradient(ellipse at center, rgba(0,0,0,0.30), transparent 70%); pointer-events: none;
@@ -869,39 +872,65 @@ body::after {
       .replace(/"/g, '&quot;');
   }
 
-  /* donut: returns SVG markup for a glass donut */
-  function donutSVG(segments, size = 132, stroke = 14) {
-    const r = (size - stroke) / 2;
-    const c = 2 * Math.PI * r;
-    const cx = size / 2;
-    let offset = 0;
-    let paths = '';
-    for (const seg of segments) {
-      if (seg.value <= 0) continue;
-      const len = (seg.value / 100) * c;
-      paths += `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none"
-        stroke-width="${stroke}"
-        style="stroke:${seg.color}"
-        stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-offset}"
-        stroke-linecap="butt"/>`;
-      offset += len;
+  /* ── reactive DOM helpers: mount once, update in place ──────
+     Values change every poll but structure does not. Rendering
+     into stable nodes lets CSS transitions actually animate
+     (donuts, bars) and avoids the flicker of full innerHTML
+     rebuilds. */
+  function setTxt(el, s) { if (el && el.textContent !== s) el.textContent = s; }
+  function setW(el, w) { if (el) el.style.width = Math.max(0, Math.min(w, 100)).toFixed(1) + '%'; }
+  function setBadge(el, cls, txt) {
+    if (!el) return;
+    if (txt != null && el.textContent !== txt) el.textContent = txt;
+    if (!el.classList.contains(cls)) el.className = 'badge ' + cls;
+  }
+  const keyedEls = new Map();
+  function mountKeyed(container, key, html) {
+    let el = keyedEls.get(key);
+    if (el && !el.isConnected) { keyedEls.delete(key); el = null; }
+    if (!el) {
+      container.insertAdjacentHTML('beforeend', html);
+      el = container.lastElementChild;
+      keyedEls.set(key, el);
     }
-    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+    return el;
+  }
+  function dropKeyed(prefix) {
+    for (const [key, el] of keyedEls) {
+      if (key.startsWith(prefix)) { if (el.isConnected) el.remove(); keyedEls.delete(key); }
+    }
   }
 
-  function sparkline(data, color, height = 54) {
-    if (!data.length) return '<svg viewBox="0 0 100 ' + height + '"></svg>';
-    const max = Math.max(...data, 1);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
-    const w = 100;
-    const step = data.length > 1 ? w / (data.length - 1) : w;
-    const pts = data.map((v, i) => {
-      const x = i * step;
-      const y = height - ((v - min) / range) * (height - 8) - 4;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(' ');
-    const areaPts = `0,${height} ${pts} ${w},${height}`;
+  /* donut: one SVG per gauge; segments update in place so the
+     stroke-dasharray transition animates between polls */
+  const DONUT_SIZE = 132, DONUT_STROKE = 14;
+  const DONUT_C = 2 * Math.PI * ((DONUT_SIZE - DONUT_STROKE) / 2);
+  function donutSVG(segments) {
+    const r = (DONUT_SIZE - DONUT_STROKE) / 2;
+    const cx = DONUT_SIZE / 2;
+    let paths = '';
+    segments.forEach((seg, i) => {
+      paths += `<circle class="dseg dseg-${i}" cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke-width="${DONUT_STROKE}" style="stroke:${seg.color}" stroke-dasharray="0 ${DONUT_C}" stroke-dashoffset="0" stroke-linecap="butt"/>`;
+    });
+    return `<svg width="${DONUT_SIZE}" height="${DONUT_SIZE}" viewBox="0 0 ${DONUT_SIZE} ${DONUT_SIZE}">${paths}</svg>`;
+  }
+  function updateDonut(donutEl, segments) {
+    const svg = donutEl && donutEl.querySelector('svg');
+    if (!svg) return;
+    let offset = 0;
+    segments.forEach((seg, i) => {
+      const c = svg.querySelector('.dseg-' + i);
+      if (!c) return;
+      const len = Math.max(0, Math.min(seg.value, 100)) / 100 * DONUT_C;
+      c.setAttribute('stroke-dasharray', `${len} ${DONUT_C - len}`);
+      c.setAttribute('stroke-dashoffset', `${-offset}`);
+      offset += len;
+    });
+  }
+
+  /* sparkline: skeleton + in-place points update */
+  const SPARK_H = 54;
+  function sparkline(data, color, height = SPARK_H) {
     const gid = 'g' + Math.random().toString(36).slice(2, 8);
     return `
       <svg viewBox="0 0 100 ${height}" preserveAspectRatio="none">
@@ -911,9 +940,25 @@ body::after {
             <stop offset="100%" style="stop-color:${color};stop-opacity:0"/>
           </linearGradient>
         </defs>
-        <polygon points="${areaPts}" fill="url(#${gid})"/>
-        <polyline points="${pts}" fill="none" style="stroke:${color};stroke-width:1.6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        <polygon class="spark-area" points="" fill="url(#${gid})"/>
+        <polyline class="spark-line" points="" fill="none" style="stroke:${color};stroke-width:1.6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
       </svg>`;
+  }
+  function updateSparkline(sparkEl, data) {
+    const svg = sparkEl && sparkEl.querySelector('svg');
+    if (!svg || !data.length) return;
+    const max = Math.max(...data, 1);
+    const min = Math.min(...data, 0);
+    const range = max - min || 1;
+    const h = SPARK_H;
+    const step = data.length > 1 ? 100 / (data.length - 1) : 100;
+    const pts = data.map((v, i) => {
+      const x = i * step;
+      const y = h - ((v - min) / range) * (h - 8) - 4;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(' ');
+    svg.querySelector('.spark-area').setAttribute('points', `0,${h} ${pts} 100,${h}`);
+    svg.querySelector('.spark-line').setAttribute('points', pts);
   }
 
   /* colors used across generated markup (theme-token based) */
@@ -958,7 +1003,7 @@ body::after {
     if (group === 'system' && sys) {
       kpis.push({
         icon: 'clock', accent: 'pool', label: 'uptime', txt: true,
-        value: escapeHTML(sys.uptime || '—'),
+        value: sys.uptime || '—',
         sub: sys.boot_time ? 'since ' + new Date(sys.boot_time * 1000).toLocaleDateString() : 'boot time unknown'
       });
       kpis.push({
@@ -968,7 +1013,7 @@ body::after {
       });
       kpis.push({
         icon: 'globe', accent: 'info', label: 'network', txt: true,
-        value: escapeHTML(sys.net_ipv4 || sys.net_iface || '—'),
+        value: sys.net_ipv4 || sys.net_iface || '—',
         sub: sys.net_ipv4 && sys.net_iface ? sys.net_iface : (sys.hostname || '—')
       });
     }
@@ -1049,9 +1094,9 @@ body::after {
 
     el.innerHTML = kpis.map(k => `
       <div class="kpi" data-accent="${k.accent}">
-        <div class="kpi-head"><span class="kpi-icon">${iconSVG(k.icon)}</span><span class="kpi-label">${k.label}</span></div>
-        <div class="kpi-value${k.txt ? ' txt' : ''}">${k.value}</div>
-        <div class="kpi-sub">${k.sub}</div>
+        <div class="kpi-head"><span class="kpi-icon">${iconSVG(k.icon)}</span><span class="kpi-label">${escapeHTML(k.label)}</span></div>
+        <div class="kpi-value${k.txt ? ' txt' : ''}">${escapeHTML(String(k.value))}</div>
+        <div class="kpi-sub">${escapeHTML(String(k.sub))}</div>
         ${k.bar != null ? `<div class="kpi-bar" style="width:${Math.min(k.bar, 100).toFixed(1)}%"></div>` : ''}
       </div>`).join('');
   }
@@ -1113,7 +1158,7 @@ body::after {
     const grid = document.getElementById('sys-grid');
     const stateEl = document.getElementById('sys-state');
     stateEl.innerHTML = '';
-    if (!s) { grid.innerHTML = ''; return; }
+    if (!s) { grid.innerHTML = ''; keyedEls.clear(); return; }
 
     const osLabel = s.os || s.os_id || (s.kernel || 'unknown');
     const kernelFull = [s.kernel, s.kernel_release].filter(Boolean).join(' ');
@@ -1123,7 +1168,7 @@ body::after {
       ? (s.memory_cached_bytes / s.memory_total_bytes * 100) : 0;
     const memFreePct = Math.max(100 - memUsedPct - memCachedPct, 0);
     const memColor = memUsedPct > 90 ? C.red : memUsedPct > 75 ? C.amber : C.amberSoft;
-    const memBadge = memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online';
+    const memBadgeCls = memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online';
     const loadStr = (s.load1 != null)
       ? `${s.load1.toFixed(2)} ${s.load5.toFixed(2)} ${s.load15.toFixed(2)}`
       : '—';
@@ -1138,26 +1183,22 @@ body::after {
     const coresStr = s.cpu_physical_cores && s.cpu_physical_cores !== s.cpu_cores
       ? `${s.cpu_physical_cores}P / ${s.cpu_cores || 0}L`
       : `${s.cpu_cores || 0}`;
-    const netStr = s.net_iface
-      ? `${escapeHTML(s.net_iface)}${s.net_ipv4 ? ` · ${escapeHTML(s.net_ipv4)}` : ''}`
+    const netRaw = s.net_iface
+      ? `${s.net_iface}${s.net_ipv4 ? ` · ${s.net_ipv4}` : ''}`
       : '—';
-    const osFull = escapeHTML(osLabel);
 
     const dashUp = document.getElementById('dash-uptime');
-    if (dashUp) dashUp.textContent = (s.uptime || '—') + ' uptime';
-
+    if (dashUp) setTxt(dashUp, (s.uptime || '—') + ' uptime');
     const brandHostEl = document.getElementById('brand-host');
-    if (brandHostEl) {
-      brandHostEl.textContent = s.fqdn ? `@${s.fqdn}` : `@${s.hostname || 'host'}`;
-    }
+    if (brandHostEl) setTxt(brandHostEl, s.fqdn ? `@${s.fqdn}` : `@${s.hostname || 'host'}`);
 
     /* Identity (left) and runtime (right) key/value columns of the host card. */
     const idRows = [
-      ffRow('OS', osFull),
+      ffRow('OS', escapeHTML(osLabel)),
       ffRow('Host', escapeHTML(s.hostname || '—')),
       ffRow('Hardware', escapeHTML(hostStr)),
       ffRow('Machine', escapeHTML(s.machine || '—')),
-      ffRow('Network', netStr),
+      ffRow('Network', escapeHTML(netRaw)),
     ];
     const rtRows = [
       ffRow('Kernel', escapeHTML(kernelFull || '—')),
@@ -1172,80 +1213,122 @@ body::after {
           : '')),
     ];
 
-    grid.innerHTML = `
-      <div class="card col-7">
+    const host = mountKeyed(grid, 'sys:host', `
+      <div class="card col-7" data-key="sys:host">
         <div class="host-card-head">
-          <div class="fastfetch-logo">${osLogoSVG(s.os_id)}</div>
+          <div class="fastfetch-logo js-oslogo"></div>
           <div class="host-head-text">
-            <div class="host-name">${escapeHTML(s.hostname || 'host')}</div>
-            <div class="host-os">${osFull} <span class="ff-sep">·</span> ${escapeHTML(kernelFull || s.kernel_release || '—')}</div>
+            <div class="host-name js-hostname"></div>
+            <div class="host-os js-hostos"></div>
           </div>
         </div>
         <div class="ff-cols kv-list">
-          <div class="ff-col">${idRows.join('')}</div>
-          <div class="ff-col">${rtRows.join('')}</div>
+          <div class="ff-col js-idcol"></div>
+          <div class="ff-col js-rtcol"></div>
         </div>
-      </div>
+      </div>`);
+    const logoKey = osLogoKey(s.os_id);
+    if (host.dataset.logo !== logoKey) {
+      host.querySelector('.js-oslogo').innerHTML = osLogoSVG(s.os_id);
+      host.dataset.logo = logoKey;
+    }
+    setTxt(host.querySelector('.js-hostname'), s.hostname || 'host');
+    setTxt(host.querySelector('.js-hostos'), `${osLabel} · ${kernelFull || s.kernel_release || '—'}`);
+    host.querySelector('.js-idcol').innerHTML = idRows.join('');
+    host.querySelector('.js-rtcol').innerHTML = rtRows.join('');
 
-      <div class="card col-5">
+    const up = mountKeyed(grid, 'sys:up', `
+      <div class="card col-5" data-key="sys:up">
         <div class="card-head"><span class="card-title">Uptime</span>
-          <span class="badge ${s.uptime_seconds > 0 ? 'b-online' : 'b-offline'}">live</span></div>
-        <div class="uptime-hero">${escapeHTML(s.uptime || '—')}</div>
+          <span class="badge js-b"></span></div>
+        <div class="uptime-hero js-uphero"></div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">Since</div><div class="tile-value violet">${s.boot_time ? new Date(s.boot_time * 1000).toLocaleDateString() : '—'}</div></div>
-          <div class="tile"><div class="tile-label">Procs</div><div class="tile-value mint">${s.processes ? s.processes.toLocaleString() : '—'}</div></div>
-          <div class="tile"><div class="tile-label">Network</div><div class="tile-value cyan" style="font-size:0.8rem">${netStr}</div></div>
+          <div class="tile"><div class="tile-label">Since</div><div class="tile-value violet js-since"></div></div>
+          <div class="tile"><div class="tile-label">Procs</div><div class="tile-value mint js-procs"></div></div>
+          <div class="tile"><div class="tile-label">Network</div><div class="tile-value cyan js-net" style="font-size:0.8rem"></div></div>
         </div>
-      </div>
+      </div>`);
+    setBadge(up.querySelector('.js-b'), s.uptime_seconds > 0 ? 'b-online' : 'b-offline', 'live');
+    setTxt(up.querySelector('.js-uphero'), s.uptime || '—');
+    setTxt(up.querySelector('.js-since'), s.boot_time ? new Date(s.boot_time * 1000).toLocaleDateString() : '—');
+    setTxt(up.querySelector('.js-procs'), s.processes ? s.processes.toLocaleString() : '—');
+    setTxt(up.querySelector('.js-net'), netRaw);
 
-      <div class="card col-6" data-accent="arc">
+    const mem = mountKeyed(grid, 'sys:mem', `
+      <div class="card col-6" data-accent="arc" data-key="sys:mem">
         <div class="card-head"><span class="card-title">Memory</span>
-          <span class="badge ${memBadge}">${memUsedPct.toFixed(0)}%</span>
+          <span class="badge js-b"></span>
         </div>
         <div class="donut-row">
           <div class="donut">
-            ${donutSVG([
-              { value: memUsedPct, color: C.amberSoft },
-              { value: memCachedPct, color: C.cyan },
-              { value: memFreePct, color: 'var(--bar-bg)' }
-            ])}
+            ${donutSVG([{ color: C.amberSoft }, { color: C.cyan }, { color: 'var(--bar-bg)' }])}
             <div class="donut-center">
-              <div class="donut-pct" style="color:${memColor}">${memUsedPct.toFixed(0)}%</div>
+              <div class="donut-pct js-pct"></div>
               <div class="donut-label">used</div>
             </div>
           </div>
           <div class="legend">
-            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Used<span class="leg-val">${fmtBytes(s.memory_used_bytes)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Cached<span class="leg-val">${fmtBytes(s.memory_cached_bytes)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:var(--bar-bg)"></span>Free<span class="leg-val">${fmtBytes(s.memory_available_bytes)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.purple}"></span>Total<span class="leg-val">${fmtBytes(s.memory_total_bytes)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Used<span class="leg-val js-used"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Cached<span class="leg-val js-cached"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:var(--bar-bg)"></span>Free<span class="leg-val js-free"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.purple}"></span>Total<span class="leg-val js-total"></span></div>
           </div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Used</span><span>${memUsedPct.toFixed(1)}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${Math.min(memUsedPct,100).toFixed(1)}%;background:linear-gradient(90deg,${memColor},var(--c-amber-soft))"></div></div>
+          <div class="bar-head"><span>Used</span><span class="js-pcttxt"></span></div>
+          <div class="bar"><div class="bar-fill js-bar" style="width:0%"></div></div>
         </div>
-        <div class="muted-note">swap ${escapeHTML(swapStr)}</div>
-      </div>
+        <div class="muted-note js-swap"></div>
+      </div>`);
+    updateDonut(mem.querySelector('.donut'), [
+      { value: memUsedPct, color: C.amberSoft },
+      { value: memCachedPct, color: C.cyan },
+      { value: memFreePct, color: 'var(--bar-bg)' }
+    ]);
+    const memPctEl = mem.querySelector('.js-pct');
+    setTxt(memPctEl, memUsedPct.toFixed(0) + '%');
+    memPctEl.style.color = memColor;
+    setBadge(mem.querySelector('.js-b'), memBadgeCls, memUsedPct.toFixed(0) + '%');
+    setTxt(mem.querySelector('.js-used'), fmtBytes(s.memory_used_bytes));
+    setTxt(mem.querySelector('.js-cached'), fmtBytes(s.memory_cached_bytes));
+    setTxt(mem.querySelector('.js-free'), fmtBytes(s.memory_available_bytes));
+    setTxt(mem.querySelector('.js-total'), fmtBytes(s.memory_total_bytes));
+    setTxt(mem.querySelector('.js-pcttxt'), memUsedPct.toFixed(1) + '%');
+    setW(mem.querySelector('.js-bar'), memUsedPct);
+    mem.querySelector('.js-bar').style.background =
+      `linear-gradient(90deg,${memColor},var(--c-amber-soft))`;
+    setTxt(mem.querySelector('.js-swap'), 'swap ' + swapStr);
 
-      <div class="card col-6" data-accent="arc">
+    const cpu = mountKeyed(grid, 'sys:cpu', `
+      <div class="card col-6" data-accent="arc" data-key="sys:cpu">
         <div class="card-head"><span class="card-title">CPU</span>
-          <span class="badge b-online">${coresStr} cores</span></div>
+          <span class="badge b-online js-b"></span></div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan" style="font-size:0.8rem">${escapeHTML(s.cpu_model || '—')}</div></div>
-          <div class="tile"><div class="tile-label">Vendor</div><div class="tile-value violet">${escapeHTML(s.cpu_vendor || '—')}</div></div>
-          <div class="tile"><div class="tile-label">Arch</div><div class="tile-value violet">${escapeHTML(s.machine || '—')}</div></div>
+          <div class="tile"><div class="tile-label">Model</div><div class="tile-value cyan js-model" style="font-size:0.8rem"></div></div>
+          <div class="tile"><div class="tile-label">Vendor</div><div class="tile-value violet js-vendor"></div></div>
+          <div class="tile"><div class="tile-label">Arch</div><div class="tile-value violet js-arch"></div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Load avg (1 / 5 / 15 min)</span><span>${escapeHTML(loadStr)}</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${s.cpu_cores ? Math.min(s.load1 / s.cpu_cores * 100, 100) : 0}%;background:linear-gradient(90deg,${C.green},${C.cyan})"></div></div>
+          <div class="bar-head"><span>Load avg (1 / 5 / 15 min)</span><span class="js-load"></span></div>
+          <div class="bar"><div class="bar-fill js-loadbar" style="width:0%"></div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Frequency (cur / max)</span><span>${escapeHTML(freqStr)}</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${s.cpu_max_mhz ? Math.min(s.cpu_freq_mhz / s.cpu_max_mhz * 100, 100) : 0}%;background:linear-gradient(90deg,${C.cyan},${C.amberSoft})"></div></div>
+          <div class="bar-head"><span>Frequency (cur / max)</span><span class="js-freq"></span></div>
+          <div class="bar"><div class="bar-fill js-freqbar" style="width:0%"></div></div>
         </div>
-        <div class="muted-note">${escapeHTML(s.kernel || '')} ${escapeHTML(s.kernel_release || '')}</div>
-      </div>`;
+        <div class="muted-note js-kernel"></div>
+      </div>`);
+    setBadge(cpu.querySelector('.js-b'), 'b-online', coresStr + ' cores');
+    setTxt(cpu.querySelector('.js-model'), s.cpu_model || '—');
+    setTxt(cpu.querySelector('.js-vendor'), s.cpu_vendor || '—');
+    setTxt(cpu.querySelector('.js-arch'), s.machine || '—');
+    setTxt(cpu.querySelector('.js-load'), loadStr);
+    setW(cpu.querySelector('.js-loadbar'), s.cpu_cores ? s.load1 / s.cpu_cores * 100 : 0);
+    cpu.querySelector('.js-loadbar').style.background = `linear-gradient(90deg,${C.green},${C.cyan})`;
+    setTxt(cpu.querySelector('.js-freq'), freqStr);
+    setW(cpu.querySelector('.js-freqbar'), s.cpu_max_mhz ? s.cpu_freq_mhz / s.cpu_max_mhz * 100 : 0);
+    cpu.querySelector('.js-freqbar').style.background = `linear-gradient(90deg,${C.cyan},${C.amberSoft})`;
+    setTxt(cpu.querySelector('.js-kernel'), `${s.kernel || ''} ${s.kernel_release || ''}`.trim() || '—');
   }
 
   async function fetchSysInfo() {
@@ -1262,6 +1345,7 @@ body::after {
       state.latest.sys = null;
       const el = document.getElementById('sys-state');
       document.getElementById('sys-grid').innerHTML = '';
+      dropKeyed('sys:');
       el.innerHTML = stateErr('failed to load system data', err.message);
       return null;
     }
@@ -1293,58 +1377,82 @@ body::after {
   }
 
   function renderPool(name, pool) {
+    const grid = document.getElementById('pools-grid');
+    const key = 'pool:' + name;
+    const card = mountKeyed(grid, key, `
+      <div class="card col-6" data-accent="pool" data-key="${escapeHTML(key)}">
+        <div class="card-head">
+          <span class="card-title js-name"></span>
+          <span class="head-badges">
+            <span class="badge b-neutral js-type"></span>
+            <span class="badge js-state"></span>
+          </span>
+        </div>
+        <div class="gauge-row">
+          <div class="donut">
+            ${donutSVG([{ color: 'var(--bar-bg)' }, { color: 'var(--bar-bg)' }])}
+            <div class="donut-center">
+              <div class="donut-pct js-cappct"></div>
+              <div class="donut-label">used</div>
+            </div>
+          </div>
+          <div class="legend">
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Total<span class="leg-val js-size"></span></div>
+            <div class="leg-item"><span class="leg-dot js-dot-alloc"></span>Allocated<span class="leg-val js-alloc"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Free<span class="leg-val js-free"></span></div>
+          </div>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-head"><span>capacity</span><span class="js-captxt"></span></div>
+          <div class="bar"><div class="bar-fill js-capbar" style="width:0%"></div></div>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="tile-label">Fragmentation</div><div class="tile-value js-frag"></div></div>
+          <div class="tile"><div class="tile-label">Dedup</div><div class="tile-value cyan js-dedup"></div></div>
+          <div class="tile"><div class="tile-label">Health</div><div class="tile-value js-health"></div></div>
+        </div>
+        <div class="vdevs">
+          <div class="vdevs-title">virtual devices</div>
+          <div class="js-vdevs"></div>
+        </div>
+      </div>`);
+
     const props = pool.properties || {};
     const cap = parseFloat(props.capacity?.value) || 0;
     const frag = props.fragmentation?.value || '—';
     const dedup = props.dedupratio?.value || '—';
-    const hc = healthBadge(pool.state);
     const capColor = cap > 90 ? C.red : cap > 75 ? C.amber : C.amberSoft;
-    const fillGrad = cap > 90
+    const capGrad = cap > 90
       ? `linear-gradient(90deg,${C.red},${C.purple})`
       : cap > 75
         ? `linear-gradient(90deg,${C.amber},${C.red})`
         : `linear-gradient(90deg,${C.amberSoft},${C.cyan})`;
 
-    return `
-      <div class="card col-6" data-accent="pool">
-        <div class="card-head">
-          <span class="card-title">${escapeHTML(name)}</span>
-          <span class="head-badges">
-            <span class="badge b-neutral">${escapeHTML(pool.type || '—')}</span>
-            <span class="badge ${hc}">${escapeHTML(pool.state)}</span>
-          </span>
-        </div>
-        <div class="gauge-row">
-          <div class="donut">
-            ${donutSVG([
-              { value: cap, color: capColor },
-              { value: Math.max(100 - cap, 0), color: 'var(--bar-bg)' }
-            ])}
-            <div class="donut-center">
-              <div class="donut-pct" style="color:${capColor}">${cap.toFixed(1)}%</div>
-              <div class="donut-label">used</div>
-            </div>
-          </div>
-          <div class="legend">
-            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Total<span class="leg-val">${escapeHTML(props.size?.value || '—')}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${capColor}"></span>Allocated<span class="leg-val">${escapeHTML(props.allocated?.value || '—')}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Free<span class="leg-val">${escapeHTML(props.free?.value || '—')}</span></div>
-          </div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-head"><span>capacity</span><span>${cap.toFixed(2)}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${Math.min(cap,100)}%;background:${fillGrad}"></div></div>
-        </div>
-        <div class="tiles">
-          <div class="tile"><div class="tile-label">Fragmentation</div><div class="tile-value ${parseFloat(frag) > 50 ? 'amber' : 'mint'}">${escapeHTML(frag)}</div></div>
-          <div class="tile"><div class="tile-label">Dedup</div><div class="tile-value cyan">${escapeHTML(dedup)}</div></div>
-          <div class="tile"><div class="tile-label">Health</div><div class="tile-value ${(pool.state || '').toUpperCase() === 'ONLINE' ? 'mint' : 'amber'}">${escapeHTML(props.health?.value || pool.state || '—')}</div></div>
-        </div>
-        <div class="vdevs">
-          <div class="vdevs-title">virtual devices</div>
-          ${renderVdevs(pool.vdevs)}
-        </div>
-      </div>`;
+    setTxt(card.querySelector('.js-name'), name);
+    setTxt(card.querySelector('.js-type'), pool.type || '—');
+    setBadge(card.querySelector('.js-state'), healthBadge(pool.state), pool.state || '—');
+    updateDonut(card.querySelector('.donut'), [
+      { value: cap, color: capColor },
+      { value: Math.max(100 - cap, 0), color: 'var(--bar-bg)' }
+    ]);
+    const capPctEl = card.querySelector('.js-cappct');
+    setTxt(capPctEl, cap.toFixed(1) + '%');
+    capPctEl.style.color = capColor;
+    card.querySelector('.js-dot-alloc').style.background = capColor;
+    setTxt(card.querySelector('.js-size'), props.size?.value || '—');
+    setTxt(card.querySelector('.js-alloc'), props.allocated?.value || '—');
+    setTxt(card.querySelector('.js-free'), props.free?.value || '—');
+    setTxt(card.querySelector('.js-captxt'), cap.toFixed(2) + '%');
+    setW(card.querySelector('.js-capbar'), cap);
+    card.querySelector('.js-capbar').style.background = capGrad;
+    const fragEl = card.querySelector('.js-frag');
+    setTxt(fragEl, frag);
+    fragEl.className = 'tile-value ' + ((parseFloat(frag) || 0) > 50 ? 'amber' : 'mint');
+    setTxt(card.querySelector('.js-dedup'), dedup);
+    const healthEl = card.querySelector('.js-health');
+    setTxt(healthEl, props.health?.value || pool.state || '—');
+    healthEl.className = 'tile-value ' + ((pool.state || '').toUpperCase() === 'ONLINE' ? 'mint' : 'amber');
+    card.querySelector('.js-vdevs').innerHTML = renderVdevs(pool.vdevs);
   }
 
   async function fetchPools() {
@@ -1352,6 +1460,7 @@ body::after {
       const res = await fetch('/api/zpool');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       state.latest.pools = data;
       renderPools(data);
       return data;
@@ -1359,6 +1468,7 @@ body::after {
       state.latest.pools = null;
       const el = document.getElementById('pools-state');
       document.getElementById('pools-grid').innerHTML = '';
+      dropKeyed('pool:');
       el.innerHTML = stateErr('failed to load pool data', err.message);
       return null;
     }
@@ -1367,14 +1477,15 @@ body::after {
   function renderPools(data) {
     const grid = document.getElementById('pools-grid');
     const stateEl = document.getElementById('pools-state');
-    grid.innerHTML = '';
     if (!data || !data.pools || Object.keys(data.pools).length === 0) {
+      grid.innerHTML = '';
+      dropKeyed('pool:');
       stateEl.innerHTML = 'no pools found or command returned empty data.';
       return;
     }
     stateEl.innerHTML = '';
     for (const [name, pool] of Object.entries(data.pools)) {
-      grid.innerHTML += renderPool(name, pool);
+      renderPool(name, pool);
     }
   }
 
@@ -1462,6 +1573,7 @@ body::after {
     const total = arc.hits + arc.misses;
     const hitPct = total ? (arc.hits / total * 100) : 0;
     const missPct = total ? (arc.misses / total * 100) : 0;
+    const hitBadgeCls = hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline';
 
     const mruHits = arc.mru_hits || 0;
     const mfuHits = arc.mfu_hits || 0;
@@ -1475,153 +1587,219 @@ body::after {
     const demHits = arc.demand_data_hits + arc.demand_metadata_hits;
     const preHits = arc.prefetch_data_hits + arc.prefetch_metadata_hits;
     const demMisses = arc.demand_data_misses + arc.demand_metadata_misses;
-    const preMisses = arc.prefetch_data_misses + arc.prefetch_metadata_misses;
+    const preMisses = arc.prefetch_data_misses + arc.prefetch_data_misses;
+    const demPct = (demHits + demMisses) ? demHits / (demHits + demMisses) * 100 : 0;
+    const prePct = (preHits + preMisses) ? preHits / (preHits + preMisses) * 100 : 0;
 
     hitHistory.push(hitPct);
     if (hitHistory.length > HIST_LEN) hitHistory.shift();
 
     pushStreamBucket(arc);
 
-    grid.innerHTML = `
-      <!-- Hit ratio donut card -->
-      <div class="card col-6" data-accent="arc">
+    /* hit ratio card */
+    const ratio = mountKeyed(grid, 'arc:ratio', `
+      <div class="card col-6" data-accent="arc" data-key="arc:ratio">
         <div class="card-head"><span class="card-title">Cache Hit Ratio</span>
-          <span class="badge ${hitPct > 70 ? 'b-online' : hitPct > 40 ? 'b-degraded' : 'b-offline'}">${hitPct.toFixed(2)}%</span>
+          <span class="badge js-b"></span>
         </div>
         <div class="donut-row">
           <div class="donut">
-            ${donutSVG([
-              { value: hitPct, color: C.green },
-              { value: missPct, color: C.red }
-            ])}
+            ${donutSVG([{ color: C.green }, { color: C.red }])}
             <div class="donut-center">
-              <div class="donut-pct" style="color:var(--mint)">${hitPct.toFixed(1)}%</div>
+              <div class="donut-pct js-pct" style="color:var(--mint)"></div>
               <div class="donut-label">hits</div>
             </div>
           </div>
           <div class="legend">
-            <div class="leg-item"><span class="leg-dot" style="background:${C.green};color:${C.green}"></span>Hits<span class="leg-val">${fmtNum(arc.hits)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.red};color:${C.red}"></span>Misses<span class="leg-val">${fmtNum(arc.misses)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan};color:${C.cyan}"></span>I/O hits<span class="leg-val">${fmtNum(arc.iohits)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.green}"></span>Hits<span class="leg-val js-hits"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.red}"></span>Misses<span class="leg-val js-misses"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>I/O hits<span class="leg-val js-iohits"></span></div>
           </div>
         </div>
         <div class="spark">${sparkline(hitHistory, C.green)}</div>
         <div class="spark-axis"><span>−${HIST_LEN}</span><span>now</span></div>
-      </div>
+      </div>`);
+    setBadge(ratio.querySelector('.js-b'), hitBadgeCls, hitPct.toFixed(2) + '%');
+    updateDonut(ratio.querySelector('.donut'), [
+      { value: hitPct, color: C.green },
+      { value: missPct, color: C.red }
+    ]);
+    setTxt(ratio.querySelector('.js-pct'), hitPct.toFixed(1) + '%');
+    setTxt(ratio.querySelector('.js-hits'), fmtNum(arc.hits));
+    setTxt(ratio.querySelector('.js-misses'), fmtNum(arc.misses));
+    setTxt(ratio.querySelector('.js-iohits'), fmtNum(arc.iohits));
+    updateSparkline(ratio.querySelector('.spark'), hitHistory);
 
-      <!-- ARC size card -->
-      <div class="card col-6" data-accent="arc">
+    /* ARC size card */
+    const size = mountKeyed(grid, 'arc:size', `
+      <div class="card col-6" data-accent="arc" data-key="arc:size">
         <div class="card-head"><span class="card-title">ARC Memory</span>
-          <span class="badge b-online">${sizePct.toFixed(0)}% full</span>
+          <span class="badge b-online js-b"></span>
         </div>
         <div class="donut-row">
           <div class="donut">
-            ${donutSVG([
-              { value: sizePct, color: C.amberSoft },
-              { value: Math.max(targetPct - sizePct, 0), color: C.cyan },
-              { value: Math.max(100 - targetPct, 0), color: 'var(--bar-bg)' }
-            ])}
+            ${donutSVG([{ color: C.amberSoft }, { color: C.cyan }, { color: 'var(--bar-bg)' }])}
             <div class="donut-center">
-              <div class="donut-pct" style="color:var(--phosphor-bright)">${fmtBytes(arc.size)}</div>
+              <div class="donut-pct js-pct" style="color:var(--phosphor-bright)"></div>
               <div class="donut-label">used</div>
             </div>
           </div>
           <div class="legend">
-            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Current<span class="leg-val">${fmtBytes(arc.size)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Target<span class="leg-val">${fmtBytes(arc.c)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.green}"></span>Min<span class="leg-val">${fmtBytes(arc.c_min)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.red}"></span>Max<span class="leg-val">${fmtBytes(arc.c_max)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>Current<span class="leg-val js-cur"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>Target<span class="leg-val js-tgt"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.green}"></span>Min<span class="leg-val js-min"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.red}"></span>Max<span class="leg-val js-max"></span></div>
           </div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Size vs Max</span><span>${sizePct.toFixed(1)}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${sizePct}%;background:linear-gradient(90deg,${C.amberSoft},${C.amber})"></div></div>
+          <div class="bar-head"><span>Size vs Max</span><span class="js-pcttxt"></span></div>
+          <div class="bar"><div class="bar-fill js-bar" style="width:0%"></div></div>
         </div>
-      </div>
+      </div>`);
+    setBadge(size.querySelector('.js-b'), 'b-online', sizePct.toFixed(0) + '% full');
+    updateDonut(size.querySelector('.donut'), [
+      { value: sizePct, color: C.amberSoft },
+      { value: Math.max(targetPct - sizePct, 0), color: C.cyan },
+      { value: Math.max(100 - targetPct, 0), color: 'var(--bar-bg)' }
+    ]);
+    setTxt(size.querySelector('.js-pct'), fmtBytes(arc.size));
+    setTxt(size.querySelector('.js-cur'), fmtBytes(arc.size));
+    setTxt(size.querySelector('.js-tgt'), fmtBytes(arc.c));
+    setTxt(size.querySelector('.js-min'), fmtBytes(arc.c_min));
+    setTxt(size.querySelector('.js-max'), fmtBytes(arc.c_max));
+    setTxt(size.querySelector('.js-pcttxt'), sizePct.toFixed(1) + '%');
+    setW(size.querySelector('.js-bar'), sizePct);
+    size.querySelector('.js-bar').style.background = `linear-gradient(90deg,${C.amberSoft},${C.amber})`;
 
-      <!-- MRU vs MFU card -->
-      <div class="card col-4" data-accent="arc">
+    /* MRU vs MFU card */
+    const mru = mountKeyed(grid, 'arc:mru', `
+      <div class="card col-4" data-accent="arc" data-key="arc:mru">
         <div class="card-head"><span class="card-title">MRU vs MFU Hits</span></div>
         <div class="donut-row">
           <div class="donut">
-            ${donutSVG([
-              { value: mruPct, color: C.amber },
-              { value: mfuPct, color: C.cyan }
-            ])}
+            ${donutSVG([{ color: C.amber }, { color: C.cyan }])}
             <div class="donut-center">
-              <div class="donut-pct" style="color:var(--cyan)">${mfuPct.toFixed(0)}%</div>
+              <div class="donut-pct js-pct" style="color:var(--cyan)"></div>
               <div class="donut-label">MFU</div>
             </div>
           </div>
           <div class="legend">
-            <div class="leg-item"><span class="leg-dot" style="background:${C.amber}"></span>MRU hits<span class="leg-val">${fmtNum(mruHits)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>MFU hits<span class="leg-val">${fmtNum(mfuHits)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.purple}"></span>MRU ghost<span class="leg-val">${fmtNum(arc.mru_ghost_hits)}</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>MFU ghost<span class="leg-val">${fmtNum(arc.mfu_ghost_hits)}</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amber}"></span>MRU hits<span class="leg-val js-mru"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.cyan}"></span>MFU hits<span class="leg-val js-mfu"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.purple}"></span>MRU ghost<span class="leg-val js-mrug"></span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:${C.amberSoft}"></span>MFU ghost<span class="leg-val js-mfug"></span></div>
           </div>
         </div>
-      </div>
+      </div>`);
+    updateDonut(mru.querySelector('.donut'), [
+      { value: mruPct, color: C.amber },
+      { value: mfuPct, color: C.cyan }
+    ]);
+    setTxt(mru.querySelector('.js-pct'), mfuPct.toFixed(0) + '%');
+    setTxt(mru.querySelector('.js-mru'), fmtNum(mruHits));
+    setTxt(mru.querySelector('.js-mfu'), fmtNum(mfuHits));
+    setTxt(mru.querySelector('.js-mrug'), fmtNum(arc.mru_ghost_hits));
+    setTxt(mru.querySelector('.js-mfug'), fmtNum(arc.mfu_ghost_hits));
 
-      <!-- Demand vs Prefetch card -->
-      <div class="card col-4" data-accent="arc">
+    /* Demand vs Prefetch card */
+    const dem = mountKeyed(grid, 'arc:dem', `
+      <div class="card col-4" data-accent="arc" data-key="arc:dem">
         <div class="card-head"><span class="card-title">Demand vs Prefetch</span></div>
         <div class="tiles tiles-2">
-          <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value mint">${fmtNum(demHits)}</div></div>
-          <div class="tile"><div class="tile-label">Demand Miss</div><div class="tile-value crimson">${fmtNum(demMisses)}</div></div>
-          <div class="tile"><div class="tile-label">Prefetch Hits</div><div class="tile-value cyan">${fmtNum(preHits)}</div></div>
+          <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value mint js-demh"></div></div>
+          <div class="tile"><div class="tile-label">Demand Miss</div><div class="tile-value crimson js-demm"></div></div>
+          <div class="tile"><div class="tile-label">Prefetch Hits</div><div class="tile-value cyan js-preh"></div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Demand hit rate</span><span>${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100).toFixed(1) : 0}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${(demHits+demMisses) ? (demHits/(demHits+demMisses)*100) : 0}%;background:linear-gradient(90deg,${C.green},${C.cyan})"></div></div>
+          <div class="bar-head"><span>Demand hit rate</span><span class="js-dempct"></span></div>
+          <div class="bar"><div class="bar-fill js-dembar" style="width:0%"></div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>Prefetch hit rate</span><span>${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100).toFixed(1) : 0}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${(preHits+preMisses) ? (preHits/(preHits+preMisses)*100) : 0}%;background:linear-gradient(90deg,${C.amber},${C.red})"></div></div>
+          <div class="bar-head"><span>Prefetch hit rate</span><span class="js-prepct"></span></div>
+          <div class="bar"><div class="bar-fill js-prebar" style="width:0%"></div></div>
         </div>
-      </div>
+      </div>`);
+    setTxt(dem.querySelector('.js-demh'), fmtNum(demHits));
+    setTxt(dem.querySelector('.js-demm'), fmtNum(demMisses));
+    setTxt(dem.querySelector('.js-preh'), fmtNum(preHits));
+    setTxt(dem.querySelector('.js-dempct'), demPct.toFixed(1) + '%');
+    setW(dem.querySelector('.js-dembar'), demPct);
+    dem.querySelector('.js-dembar').style.background = `linear-gradient(90deg,${C.green},${C.cyan})`;
+    setTxt(dem.querySelector('.js-prepct'), prePct.toFixed(1) + '%');
+    setW(dem.querySelector('.js-prebar'), prePct);
+    dem.querySelector('.js-prebar').style.background = `linear-gradient(90deg,${C.amber},${C.red})`;
 
-      <!-- Memory breakdown card -->
-      <div class="card col-12" data-accent="arc">
+    /* Memory breakdown card */
+    const mem = mountKeyed(grid, 'arc:mem', `
+      <div class="card col-12" data-accent="arc" data-key="arc:mem">
         <div class="card-head"><span class="card-title">Memory Breakdown</span></div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">Data</div><div class="tile-value cyan">${fmtBytes(arc.data_size)}</div></div>
-          <div class="tile"><div class="tile-label">Metadata</div><div class="tile-value violet">${fmtBytes(arc.metadata_size)}</div></div>
-          <div class="tile"><div class="tile-label">Headers</div><div class="tile-value amber">${fmtBytes(arc.hdr_size)}</div></div>
+          <div class="tile"><div class="tile-label">Data</div><div class="tile-value cyan js-data"></div></div>
+          <div class="tile"><div class="tile-label">Metadata</div><div class="tile-value violet js-meta"></div></div>
+          <div class="tile"><div class="tile-label">Headers</div><div class="tile-value amber js-hdr"></div></div>
         </div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">Dbuf</div><div class="tile-value mint">${fmtBytes(arc.dbuf_size)}</div></div>
-          <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value mint">${fmtBytes(arc.arc_dnode_size)}</div></div>
-          <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value crimson">${fmtNum(arc.deleted)}</div></div>
+          <div class="tile"><div class="tile-label">Dbuf</div><div class="tile-value mint js-dbuf"></div></div>
+          <div class="tile"><div class="tile-label">Dnode</div><div class="tile-value mint js-dnode"></div></div>
+          <div class="tile"><div class="tile-label">Evicted</div><div class="tile-value crimson js-evicted"></div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>System memory available</span><span>${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100).toFixed(1) : 0}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${arc.memory_all_bytes ? (arc.memory_available_bytes/arc.memory_all_bytes*100) : 0}%;background:linear-gradient(90deg,${C.green},${C.cyan})"></div></div>
+          <div class="bar-head"><span>System memory available</span><span class="js-availpct"></span></div>
+          <div class="bar"><div class="bar-fill js-availbar" style="width:0%"></div></div>
         </div>
-        <div class="muted-note">free ${fmtBytes(arc.memory_free_bytes)} / total ${fmtBytes(arc.memory_all_bytes)}</div>
-      </div>
+        <div class="muted-note js-note"></div>
+      </div>`);
+    setTxt(mem.querySelector('.js-data'), fmtBytes(arc.data_size));
+    setTxt(mem.querySelector('.js-meta'), fmtBytes(arc.metadata_size));
+    setTxt(mem.querySelector('.js-hdr'), fmtBytes(arc.hdr_size));
+    setTxt(mem.querySelector('.js-dbuf'), fmtBytes(arc.dbuf_size));
+    setTxt(mem.querySelector('.js-dnode'), fmtBytes(arc.arc_dnode_size));
+    setTxt(mem.querySelector('.js-evicted'), fmtNum(arc.deleted));
+    const availPct = arc.memory_all_bytes ? arc.memory_available_bytes / arc.memory_all_bytes * 100 : 0;
+    setTxt(mem.querySelector('.js-availpct'), availPct.toFixed(1) + '%');
+    setW(mem.querySelector('.js-availbar'), availPct);
+    mem.querySelector('.js-availbar').style.background = `linear-gradient(90deg,${C.green},${C.cyan})`;
+    setTxt(mem.querySelector('.js-note'),
+      `free ${fmtBytes(arc.memory_free_bytes)} / total ${fmtBytes(arc.memory_all_bytes)}`);
 
-      <!-- L2ARC card -->
-      ${arc.l2_ndev > 0 || arc.l2_size > 0 ? `
-      <div class="card col-4" data-accent="arc">
+    /* L2ARC card (presence can change; two keyed variants toggled) */
+    const hasL2 = arc.l2_ndev > 0 || arc.l2_size > 0;
+    const l2pct = (arc.l2_hits + arc.l2_misses)
+      ? arc.l2_hits / (arc.l2_hits + arc.l2_misses) * 100 : 0;
+    const l2 = mountKeyed(grid, 'arc:l2', `
+      <div class="card col-4" data-accent="arc" data-key="arc:l2">
         <div class="card-head"><span class="card-title">L2ARC</span>
-          <span class="badge b-online">${arc.l2_ndev} device${arc.l2_ndev !== 1 ? 's' : ''}</span>
+          <span class="badge b-online js-b"></span>
         </div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">L2 Size</div><div class="tile-value violet">${fmtBytes(arc.l2_size)}</div></div>
-          <div class="tile"><div class="tile-label">L2 Asize</div><div class="tile-value cyan">${fmtBytes(arc.l2_asize)}</div></div>
-          <div class="tile"><div class="tile-label">L2 Hits</div><div class="tile-value mint">${fmtNum(arc.l2_hits)}</div></div>
+          <div class="tile"><div class="tile-label">L2 Size</div><div class="tile-value violet js-size"></div></div>
+          <div class="tile"><div class="tile-label">L2 Asize</div><div class="tile-value cyan js-asize"></div></div>
+          <div class="tile"><div class="tile-label">L2 Hits</div><div class="tile-value mint js-hits"></div></div>
         </div>
         <div class="bar-wrap">
-          <div class="bar-head"><span>L2 hit rate</span><span>${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100).toFixed(1) : 0}%</span></div>
-          <div class="bar"><div class="bar-fill" style="width:${(arc.l2_hits+arc.l2_misses) ? (arc.l2_hits/(arc.l2_hits+arc.l2_misses)*100) : 0}%;background:linear-gradient(90deg,${C.purple},${C.cyan})"></div></div>
+          <div class="bar-head"><span>L2 hit rate</span><span class="js-pct"></span></div>
+          <div class="bar"><div class="bar-fill js-bar" style="width:0%"></div></div>
         </div>
-      </div>` : `
-      <div class="card col-4" data-accent="arc">
+      </div>`);
+    const l2none = mountKeyed(grid, 'arc:l2none', `
+      <div class="card col-4" data-accent="arc" data-key="arc:l2none">
         <div class="card-head"><span class="card-title">L2ARC</span></div>
         <div class="state" style="padding:30px 10px">no L2ARC device detected</div>
         <div class="muted-note">attach a cache vdev to enable</div>
-      </div>`}
-    `;
+      </div>`);
+    l2.hidden = !hasL2;
+    l2none.hidden = hasL2;
+    if (hasL2) {
+      setBadge(l2.querySelector('.js-b'), 'b-online',
+        `${arc.l2_ndev} device${arc.l2_ndev !== 1 ? 's' : ''}`);
+      setTxt(l2.querySelector('.js-size'), fmtBytes(arc.l2_size));
+      setTxt(l2.querySelector('.js-asize'), fmtBytes(arc.l2_asize));
+      setTxt(l2.querySelector('.js-hits'), fmtNum(arc.l2_hits));
+      setTxt(l2.querySelector('.js-pct'), l2pct.toFixed(1) + '%');
+      setW(l2.querySelector('.js-bar'), l2pct);
+      l2.querySelector('.js-bar').style.background = `linear-gradient(90deg,${C.purple},${C.cyan})`;
+    }
+
     renderStream(hitPct);
   }
 
@@ -1638,6 +1816,7 @@ body::after {
       state.latest.arc = null;
       const el = document.getElementById('arc-state');
       document.getElementById('arc-grid').innerHTML = '';
+      dropKeyed('arc:');
       el.innerHTML = stateErr('failed to load ARC data', err.message);
       return null;
     }
@@ -1950,17 +2129,27 @@ body::after {
     caps.smart = !!(report && report.smartctl_available && report.devices && report.devices.length);
   }
 
+  function setLive(ok) {
+    const el = document.getElementById('nav-live');
+    if (el) {
+      el.classList.toggle('err', !ok);
+      setTxt(el, ok ? 'live' : 'offline');
+    }
+  }
+
   async function refreshAll() {
     lastRefresh = Date.now();
     const fab = document.getElementById('fab');
     fab.classList.add('refreshing');
+    let ok = true;
     try {
-      await fetchSysInfo();
-      const tasks = [];
-      tasks.push(caps.zfs ? fetchPools() : Promise.resolve(null));
-      tasks.push(caps.arc ? fetchARC() : Promise.resolve(null));
-      tasks.push(fetchSmart());
-      await Promise.all(tasks);
+      const sys = await fetchSysInfo();
+      ok = ok && sys !== null;
+      const pools = caps.zfs ? await fetchPools() : null;
+      const arc = caps.arc ? await fetchARC() : null;
+      const smart = await fetchSmart();
+      ok = ok && (!caps.zfs || pools !== null) && (!caps.arc || arc !== null) && smart !== null;
+      setLive(ok);
       renderKPIs();
     } finally {
       setTimeout(() => fab.classList.remove('refreshing'), 500);
@@ -1973,7 +2162,10 @@ body::after {
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { clearInterval(timer); timer = null; }
-    else if (!timer) { timer = setInterval(refreshAll, REFRESH_MS); }
+    else if (!timer) {
+      timer = setInterval(refreshAll, REFRESH_MS);
+      refreshAll();
+    }
   });
 </script>
 </body>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -68,7 +69,7 @@ func main() {
 	// /proc read. Park the runtime and serve.
 	zdash.BootSleep()
 	log.Printf("zdash %s listening on %s (deep-sleep until first connection)", version, listenerAddr(ln))
-	if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("⚠️  server failed: %v", err)
 	}
 }
