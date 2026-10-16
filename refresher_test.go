@@ -119,17 +119,82 @@ func TestRefresher_BackgroundLoopRefreshesAndStops(t *testing.T) {
 		t.Errorf("producer calls = %d, want >= 2 (loop ran)", got)
 	}
 
-	// Sleep drops the cache and stops the loop.
+	// Sleep drops the cache and stops the loop. A tick that was already
+	// committed when setActive(false) ran may finish, so treat the call
+	// count as settled once it stops changing for well over a full tick.
 	r.mu.Lock()
 	if len(r.entries) != 0 {
 		t.Error("cache not dropped on deactivate")
 	}
 	r.mu.Unlock()
-	after := calls.Load()
-	time.Sleep(40 * time.Millisecond)
-	if got := calls.Load(); got != after {
-		t.Errorf("producer calls = %d, want %d (loop stopped)", got, after)
+	stableCalls(t, &calls)
+	r.mu.Lock()
+	if len(r.entries) != 0 {
+		t.Error("cache repopulated after deactivate")
 	}
+	r.mu.Unlock()
+}
+
+// stableCalls waits until the producer call count has not changed for a
+// quiet period longer than one refresh tick, which proves the loop stopped.
+func stableCalls(t *testing.T, calls *atomic.Int64) int64 {
+	t.Helper()
+	quiet := 80 * time.Millisecond
+	deadline := time.Now().Add(5 * time.Second)
+	last := calls.Load()
+	for {
+		time.Sleep(quiet)
+		cur := calls.Load()
+		if cur == last {
+			return cur
+		}
+		last = cur
+		if time.Now().After(deadline) {
+			break
+		}
+	}
+	t.Fatalf("producer calls never settled, last = %d", last)
+	return last
+}
+
+// An in-flight fetch that completes after the session ended must not
+// smuggle its (now stale) body back into the dropped cache.
+func TestRefresher_InflightFetchNotCachedAfterDeactivate(t *testing.T) {
+	r, calls := newTestRefresher(t, "k", time.Hour, []byte(`{}`), 200)
+	// Slow the producer so the fetch overlaps the deactivate.
+	r.producers["k"] = func(ctx context.Context) ([]byte, int) {
+		calls.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		return []byte(`{"late":true}`), 200
+	}
+
+	r.setActive(true)
+	// Kick off a fetch and wait until it is in flight.
+	var wg sync.WaitGroup
+	wg.Go(func() { r.get(context.Background(), "k") })
+	for {
+		r.mu.Lock()
+		inflight := r.inflight["k"] != nil
+		r.mu.Unlock()
+		if inflight {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	r.setActive(false)
+
+	r.mu.Lock()
+	if len(r.entries) != 0 {
+		t.Error("cache not empty after deactivate")
+	}
+	r.mu.Unlock()
+	wg.Wait()
+	time.Sleep(20 * time.Millisecond)
+	r.mu.Lock()
+	if len(r.entries) != 0 {
+		t.Error("in-flight fetch repopulated the dropped cache")
+	}
+	r.mu.Unlock()
 }
 
 func TestRefresher_WaiterGets503OnContextCancelWithoutSnapshot(t *testing.T) {

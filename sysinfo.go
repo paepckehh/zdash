@@ -120,11 +120,6 @@ type SysInfo struct {
 	Timestamp int64 `json:"timestamp_ms"`
 }
 
-// resolveSysInfoPath returns the input path unchanged. It exists only so the
-// fetch seam can be exercised with stubbed paths in tests (mirroring the
-// resolveARCPath / resolveZpoolBin shape).
-func resolveSysInfoPath(p string) string { return p }
-
 // fetchSysInfo gathers a host snapshot from /proc and /etc/os-release. It is
 // tolerant: a missing or unparseable file leaves the relevant field zero and
 // is logged, so the dashboard degrades gracefully on non-Linux hosts. Only a
@@ -145,7 +140,7 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 		}
 	}
 
-	if b, err := os.ReadFile(resolveSysInfoPath(procOSRelease)); err == nil {
+	if b, err := os.ReadFile(procOSRelease); err == nil {
 		id, pretty, ver, codename, variant, buildID := parseOSRelease(b)
 		s.OSID = id
 		s.OS = pretty
@@ -157,14 +152,14 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 		log.Printf("⚠️  sysinfo: %s: %v", procOSRelease, err)
 	}
 
-	if b, err := os.ReadFile(resolveSysInfoPath(procUptime)); err == nil {
+	if b, err := os.ReadFile(procUptime); err == nil {
 		s.UptimeSeconds = parseUptime(b)
 		s.Uptime = formatUptime(s.UptimeSeconds)
 	} else {
 		log.Printf("⚠️  sysinfo: %s: %v", procUptime, err)
 	}
 
-	if b, err := os.ReadFile(resolveSysInfoPath(procMemInfo)); err == nil {
+	if b, err := os.ReadFile(procMemInfo); err == nil {
 		s.MemoryTotalBytes,
 			s.MemoryFreeBytes,
 			s.MemoryAvailableBytes,
@@ -181,7 +176,7 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 		log.Printf("⚠️  sysinfo: %s: %v", procMemInfo, err)
 	}
 
-	if b, err := os.ReadFile(resolveSysInfoPath(procCPUInfo)); err == nil {
+	if b, err := os.ReadFile(procCPUInfo); err == nil {
 		s.CPUModel, s.CPUVendor, s.CPUCores, s.CPUPhysicalCores, s.CPUFreqMHz = parseCPUInfo(b)
 	} else {
 		log.Printf("⚠️  sysinfo: %s: %v", procCPUInfo, err)
@@ -208,13 +203,13 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 	s.HostVersion = readTrim(dmiProductVer)
 	s.HostFamily = readTrim(dmiBoardName)
 
-	if b, err := os.ReadFile(resolveSysInfoPath(procLoadAvg)); err == nil {
+	if b, err := os.ReadFile(procLoadAvg); err == nil {
 		s.Load1, s.Load5, s.Load15 = parseLoadAvg(b)
 	} else {
 		log.Printf("⚠️  sysinfo: %s: %v", procLoadAvg, err)
 	}
 
-	if b, err := os.ReadFile(resolveSysInfoPath(procStat)); err == nil {
+	if b, err := os.ReadFile(procStat); err == nil {
 		s.BootTime = parseBtime(b)
 	} else {
 		log.Printf("⚠️  sysinfo: %s: %v", procStat, err)
@@ -244,10 +239,10 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 	// FIB, which lists interface addresses). Both files are absent or empty
 	// on hosts without IPv4, leaving the fields blank so the frontend can
 	// hide the row gracefully.
-	if b, err := os.ReadFile(resolveSysInfoPath(procNetRoute)); err == nil {
+	if b, err := os.ReadFile(procNetRoute); err == nil {
 		if iface := parseDefaultRoute(b); iface != "" {
 			s.NetIface = iface
-			if fb, ferr := os.ReadFile(resolveSysInfoPath(procNetIPv4)); ferr == nil {
+			if fb, ferr := os.ReadFile(procNetIPv4); ferr == nil {
 				s.NetIPv4 = parseIPv4ForIface(fb, iface)
 			}
 		}

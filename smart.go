@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -254,7 +255,7 @@ func smartctlVersion(v []int) string {
 	}
 	parts := make([]string, 0, len(v))
 	for _, n := range v {
-		parts = append(parts, fmt.Sprintf("%d", n))
+		parts = append(parts, strconv.Itoa(n))
 	}
 	return strings.Join(parts, ".")
 }

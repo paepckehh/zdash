@@ -799,8 +799,6 @@ body::after {
   const caps = { zfs: true, arc: true, smart: false };
   const state = { latest: { sys: null, pools: null, arc: null, smart: null } };
   const hitHistory = [];
-  const missHistory = [];
-  const sizeHistory = [];
   const HIST_LEN = 60;
 
   // Live ARC traffic stream: array of buckets, each {h, m} deltas.
@@ -1126,7 +1124,7 @@ body::after {
     const memFreePct = Math.max(100 - memUsedPct - memCachedPct, 0);
     const memColor = memUsedPct > 90 ? C.red : memUsedPct > 75 ? C.amber : C.amberSoft;
     const memBadge = memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online';
-    const loadStr = (s.load1 != null && s.load1 !== 0)
+    const loadStr = (s.load1 != null)
       ? `${s.load1.toFixed(2)} ${s.load5.toFixed(2)} ${s.load15.toFixed(2)}`
       : '—';
     const swapStr = s.swap_total_bytes
@@ -1480,11 +1478,7 @@ body::after {
     const preMisses = arc.prefetch_data_misses + arc.prefetch_metadata_misses;
 
     hitHistory.push(hitPct);
-    missHistory.push(arc.misses);
-    sizeHistory.push(arc.size);
     if (hitHistory.length > HIST_LEN) hitHistory.shift();
-    if (missHistory.length > HIST_LEN) missHistory.shift();
-    if (sizeHistory.length > HIST_LEN) sizeHistory.shift();
 
     pushStreamBucket(arc);
 

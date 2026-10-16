@@ -60,12 +60,6 @@ type ARCMetrics struct {
 	Timestamp int64 `json:"timestamp_ms"`
 }
 
-// resolveARCPath returns the arcstats kstat path. On a standard Linux/ZFS
-// install the file always lives under /proc, so there is no $PATH lookup and
-// no NixOS special-case (the proc entry is not affected by the NixOS
-// per-profile binary layout).
-func resolveARCPath() string { return arcstatsPath }
-
 // fetchARC reads the arcstats kstat file and decodes the named UINT64 rows
 // into ARCMetrics. It mirrors fetchZpool: a single seam between HTTP transport
 // and the data source, testable with a stubbed path.
@@ -171,7 +165,7 @@ func produceARC(ctx context.Context) ([]byte, int) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	data, err := fetchARC(ctx, resolveARCPath())
+	data, err := fetchARC(ctx, arcstatsPath)
 	if err != nil {
 		log.Printf("⚠️  arc fetch failed: %v", err)
 		return errBody("Failed to read ARC stats. Ensure ZFS is loaded and /proc/spl/kstat/zfs/arcstats is readable (usually root or zfs group)."), http.StatusInternalServerError

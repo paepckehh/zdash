@@ -67,6 +67,7 @@ type refresher struct {
 	entries   map[string]*refreshEntry
 	inflight  map[string]*fetchCall
 	active    bool
+	gen       uint64
 	stop      chan struct{}
 }
 
@@ -103,9 +104,16 @@ func (r *refresher) setActive(active bool) {
 		return
 	}
 	r.active = false
+	r.gen++
 	if r.stop != nil {
-		close(r.stop)
-		r.stop = nil
+		// The channel stays non-nil (closed): get() uses its closed
+		// state to refuse fetches that a committed tick tries to start
+		// after the session already ended. Never close twice.
+		select {
+		case <-r.stop:
+		default:
+			close(r.stop)
+		}
 	}
 	// Drop cached bodies; runtimeSleep's debug.FreeOSMemory hands the
 	// released pages back to the OS.
@@ -123,6 +131,13 @@ func (r *refresher) loop(stop chan struct{}) {
 		case <-stop:
 			return
 		case <-t.C:
+			// A tick and a concurrent deactivate can both be ready; never
+			// start a refresh round on a session that is already gone.
+			select {
+			case <-stop:
+				return
+			default:
+			}
 			r.refreshAll()
 		}
 	}
@@ -164,7 +179,19 @@ func (r *refresher) get(ctx context.Context, key string) ([]byte, int) {
 		r.mu.Unlock()
 		return errBody("unknown endpoint"), http.StatusNotFound
 	}
+	// Authoritative session check, serialized with setActive's gen bump:
+	// once the session's stop channel is closed, no new fetch may start (a
+	// tick that was already committed when the session ended lands here).
+	if r.stop != nil {
+		select {
+		case <-r.stop:
+			r.mu.Unlock()
+			return errBody("session ended"), http.StatusServiceUnavailable
+		default:
+		}
+	}
 	call := &fetchCall{done: make(chan struct{})}
+	gen := r.gen
 	r.inflight[key] = call
 	r.mu.Unlock()
 
@@ -179,7 +206,12 @@ func (r *refresher) get(ctx context.Context, key string) ([]byte, int) {
 		}()
 		body, status := p(context.WithoutCancel(ctx))
 		r.mu.Lock()
-		r.entries[key] = &refreshEntry{body: body, status: status, fetched: time.Now()}
+		// Store only into the session that started the fetch: if the
+		// session ended mid-fetch the cache was already dropped, and a
+		// late write would smuggle stale bytes into the next session.
+		if gen == r.gen {
+			r.entries[key] = &refreshEntry{body: body, status: status, fetched: time.Now()}
+		}
 		r.mu.Unlock()
 		call.body, call.status = body, status
 	}()
