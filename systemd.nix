@@ -32,6 +32,9 @@
     # No wantedBy: the socket unit above is the only activator. Booting the
     # service eagerly would defeat socket activation entirely.
     environment = {
+      # Opt in to adopting the systemd-passed socket fd (Linux-only feature,
+      # disabled by default in the binary).
+      ZDASH_SOCKET_ACTIVATION = "1";
       # Exit with status 0 once the last session closes instead of parking
       # in deep sleep; the socket unit restarts on demand. The systemd
       # sleep profile below becomes a safety net for the wake window.

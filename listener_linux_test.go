@@ -1,0 +1,96 @@
+//go:build linux
+
+package zdash
+
+import (
+	"net"
+	"os"
+	"strconv"
+	"testing"
+)
+
+func TestSystemdListener_DisabledByDefault(t *testing.T) {
+	t.Setenv("ZDASH_SOCKET_ACTIVATION", "")
+	t.Setenv("LISTEN_FDS", "1")
+	t.Setenv("LISTEN_PID", strconv.Itoa(os.Getpid()))
+	if ln := systemdListener(); ln != nil {
+		ln.Close()
+		t.Fatal("socket adoption happened without ZDASH_SOCKET_ACTIVATION=1")
+	}
+}
+
+func TestSystemdListener_EnabledButNotActivated(t *testing.T) {
+	t.Setenv("ZDASH_SOCKET_ACTIVATION", "1")
+	t.Setenv("LISTEN_FDS", "")
+	if ln := systemdListener(); ln != nil {
+		ln.Close()
+		t.Fatal("adopted a listener with no LISTEN_FDS")
+	}
+}
+
+func TestSystemdListener_PIDMismatch(t *testing.T) {
+	t.Setenv("ZDASH_SOCKET_ACTIVATION", "1")
+	t.Setenv("LISTEN_FDS", "1")
+	t.Setenv("LISTEN_PID", "1") // not this process
+	if ln := systemdListener(); ln != nil {
+		ln.Close()
+		t.Fatal("adopted fd 3 despite LISTEN_PID mismatch")
+	}
+}
+
+func TestSystemdListener_GarbageEnv(t *testing.T) {
+	t.Setenv("ZDASH_SOCKET_ACTIVATION", "1")
+	for _, tc := range []struct{ fds, pid string }{
+		{"garbage", ""},
+		{"-1", ""},
+		{"0", ""},
+		{"1", "garbage"},
+	} {
+		t.Setenv("LISTEN_FDS", tc.fds)
+		t.Setenv("LISTEN_PID", tc.pid)
+		if ln := systemdListener(); ln != nil {
+			ln.Close()
+			t.Errorf("adopted a listener for LISTEN_FDS=%q LISTEN_PID=%q", tc.fds, tc.pid)
+		}
+	}
+}
+
+// TestAdoptListener_FromFile exercises the adoption path with a real socket
+// passed as an *os.File, the same shape systemd hands the process as fd 3.
+func TestAdoptListener_FromFile(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	f, err := ln.(*net.TCPListener).File()
+	if err != nil {
+		t.Fatalf("File(): %v", err)
+	}
+	adopted := adoptListener(f)
+	if adopted == nil {
+		t.Fatal("adoptListener did not adopt the socket file")
+	}
+	defer adopted.Close()
+	if adopted.Addr().String() != ln.Addr().String() {
+		t.Errorf("adopted addr = %s, want %s", adopted.Addr(), ln.Addr())
+	}
+}
+
+// TestAdoptListener_NotASocket verifies the failure path: a plain file fd
+// is rejected and closed instead of crashing or leaking.
+func TestAdoptListener_NotASocket(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "notasock")
+	if err != nil {
+		t.Fatalf("tempfile: %v", err)
+	}
+	if ln := adoptListener(f); ln != nil {
+		ln.Close()
+		t.Fatal("adoptListener adopted a non-socket file")
+	}
+	if _, err := f.Stat(); err == nil {
+		_ = f.Close()
+		t.Error("failed adoption did not close the file")
+	}
+}
