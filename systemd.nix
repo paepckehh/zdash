@@ -1,8 +1,4 @@
-{
-  ...
-}:
-{
-
+{...}: {
   ##################
   #-=# SERVICES #=-#
   ##################
@@ -15,20 +11,11 @@
   #-=# SYSTEMD #=-#
   #################
   systemd = {
-    sockets.zdash = {
-      description = "zDash Socket (socket-activated ZFS dashboard)";
-      wantedBy = [ "sockets.target" ];
-      socketConfig.ListenStream = "127.0.0.1:9091";
-    };
-
     services.zdash = {
       description = "zDash ZFS Dashboard";
-      after = [ "network.target" ];
-      environment = {
-        BIND_ADDR = "127.0.0.1:9091";
-        EXIT_ON_IDLE = "1";
-        SOCKET_ACTIVATION = "1";
-      };
+      wantedBy = ["multi-user.target"];
+      after = ["network.target"];
+      environment.BIND_ADDR = "127.0.0.1:9091";
       serviceConfig = {
         ExecStart = "/nix/persist/root/bin/zdash";
         KillMode = "mixed";
@@ -63,14 +50,14 @@
           "AF_INET6"
           "AF_UNIX"
         ];
-        SystemCallFilter = [ "@system-service" ];
+        SystemCallFilter = ["@system-service"];
         SocketBindDeny = "any";
         SocketBindAllow = "tcp:9091";
         IPAddressAllow = [
           "127.0.0.0/8"
           "::1"
         ];
-        IPAddressDeny = [ "any" ];
+        IPAddressDeny = ["any"];
       };
     };
   };

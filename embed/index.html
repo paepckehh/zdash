@@ -1484,8 +1484,18 @@ body::after {
       return;
     }
     stateEl.innerHTML = '';
+    const seen = new Set();
     for (const [name, pool] of Object.entries(data.pools)) {
+      seen.add(name);
       renderPool(name, pool);
+    }
+    /* pools destroyed/exported since the last poll must not linger
+       as stale cards (same seen-set cleanup the SMART tabs use) */
+    for (const [key, el] of keyedEls) {
+      if (key.startsWith('pool:') && !seen.has(key.slice(5))) {
+        if (el && el.isConnected) el.remove();
+        keyedEls.delete(key);
+      }
     }
   }
 

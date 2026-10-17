@@ -51,7 +51,8 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 ├── listener.go      # portable Listen(): systemd fd adoption (Linux-only, opt-in) with BIND_ADDR fallback
 ├── listener_linux.go # Linux-only sd-listen-fds adoption, gated by SOCKET_ACTIVATION=1
 ├── listener_stub.go  # non-Linux no-op stub (FreeBSD/macOS/Windows always bind BIND_ADDR)
-├── systemd.nix      # NixOS module: socket-activated, hardened, resource-capped systemd units
+├── systemd.nix      # NixOS module: plain boot-started hardened service behind Caddy
+├── systemd-socket.nix # NixOS module: socket-activated + exit-on-idle variant behind Caddy
 ├── api_test.go       # zpool JSON parsing tests (canned fixtures in testdata/)
 ├── arc_test.go       # ARC kstat parsing tests (canned fixtures in testdata/)
 ├── sysinfo_test.go   # /proc + /sys parser tests (canned fixtures in testdata/)
@@ -130,12 +131,12 @@ From the repo root:
 - Paths are fixed `/proc` + `/sys` constants — the layout is kernel-fixed, so (unlike `zpool`) there is no NixOS special-case and no resolver seam.
 - On non-Linux OSes the `runtime.GOOS` guards short-circuit most reads to empty values; the endpoint still responds 200 with whatever fields it could populate.
 
-## systemd deployment (systemd.nix)
+## systemd deployment (systemd.nix / systemd-socket.nix)
 
-`systemd.nix` is a self-contained NixOS module fragment (no external arguments; all addresses hardcode `127.0.0.1:9091`) that runs zdash fully socket-activated and hardened, fronted by a Caddy vhost `http://zdash` (plain HTTP: a single-label host cannot get a public ACME cert, so the vhost must carry an explicit `http://` scheme) that `reverse_proxy`ies to the socket:
+The repo ships TWO alternative NixOS module fragments — self-contained (no external arguments; all addresses hardcode `127.0.0.1:9091`) and identically hardened, each fronted by a Caddy vhost `http://zdash` (plain HTTP: a single-label host cannot get a public ACME cert, so the vhost must carry an explicit `http://` scheme) that `reverse_proxy`ies to `127.0.0.1:9091`. Import exactly ONE of the two — importing both yields conflicting `services.zdash`/`services.caddy` definitions:
 
-- `systemd.sockets.zdash` holds the `ListenStream` socket; the service is not started at boot at all — the first dashboard connection activates it. The unit sets `SOCKET_ACTIVATION=1` to opt the binary into adopting the passed fd (the feature is disabled by default in the binary).
-- The service runs with `EXIT_ON_IDLE=1`, so it exits (status 0) once the last session closes; `StartLimitIntervalSec = 0` keeps the on-demand restarts from being rate-limited, and the service is deliberately NOT `wantedBy` anything (that would defeat socket activation).
+- **`systemd.nix` (plain)**: the service binds `127.0.0.1:9091` itself (`BIND_ADDR`), is `wantedBy = ["multi-user.target"]` so it starts at boot, and keeps running (deep-sleeps between sessions; no `EXIT_ON_IDLE`, no `SOCKET_ACTIVATION`).
+- **`systemd-socket.nix` (socket-activated)**: `systemd.sockets.zdash` (wanted by `sockets.target`) holds the `ListenStream` socket; the service is not started at boot at all — the first dashboard connection activates it. The unit sets `SOCKET_ACTIVATION=1` to opt the binary into adopting the passed fd (the feature is disabled by default in the binary), and runs with `EXIT_ON_IDLE=1`, so it exits (status 0) once the last session closes; `StartLimitIntervalSec = 0` keeps the on-demand restarts from being rate-limited, and the service is deliberately NOT `wantedBy` anything (that would defeat socket activation).
 - Hardening: `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, full kernel/cgroup/hostname/clock protection, `NoNewPrivileges`, `LockPersonality`, `MemoryDenyWriteExecute`, `RestrictNamespaces`, `SystemCallFilter=@system-service`, `RestrictAddressFamilies` to inet/inet6/unix, `SocketBindDeny=any` with only `SocketBindAllow=tcp:9091` (covers the fallback-bind path; the socket-activation fd never binds), and `IPAddressDeny=any` with only loopback allowed (the Caddy reverse proxy on the same host).
 - Deliberately NOT restricted (they would break `zpool`/`smartctl` as root): capability bounding set, `@privileged`/`@resources` syscall groups, `PrivateDevices` (raw disks and `/dev/zfs` must stay visible), and `ProcSubset` (`/proc/spl` kstats must stay readable).
 - Resource caps: `Nice=10`, `CPUWeight=10`, `IOWeight=10` (a dashboard must never compete with the storage stack), `MemoryMax=128M`, `TasksMax=32` (main process plus parallel smartctl children).
