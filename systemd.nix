@@ -12,10 +12,11 @@
   #################
   systemd = {
     services.zdash = {
-      description = "zDash ZFS Dashboard";
+      description = "zDash System & ZFS Dashboard";
       wantedBy = ["multi-user.target"];
       after = ["network.target"];
       environment.BIND_ADDR = "127.0.0.1:9091";
+      environment.GOMEMLIMIT = "8MiB";
       serviceConfig = {
         ExecStart = "/nix/persist/root/bin/zdash";
         KillMode = "mixed";

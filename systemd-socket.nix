@@ -17,12 +17,13 @@
       socketConfig.ListenStream = "127.0.0.1:9091";
     };
     services.zdash = {
-      description = "zDash ZFS Dashboard";
+      description = "zDash System & ZFS Dashboard";
       after = ["network.target"];
       environment = {
         BIND_ADDR = "127.0.0.1:9091";
         EXIT_ON_IDLE = "1";
         SOCKET_ACTIVATION = "1";
+        GOMEMLIMIT = "8MiB";
       };
       serviceConfig = {
         ExecStart = "/nix/persist/root/bin/zdash";

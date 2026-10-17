@@ -2,9 +2,9 @@
 
 # ⚡ zDash
 
-**Zero-cost ZFS monitoring in a single pure-Go binary.**
+**A general system dashboard with a ZFS superpower — that isn't there until you look at it.**
 
-One `go run`. Zero dependencies. Real-time pool health, ARC statistics, SMART drive telemetry and host metrics, rendered in a glassmorphic theme-switchable dashboard that **deep-sleeps the moment you close the tab**.
+OS, kernel, CPU, memory, network and drives on any host — plus the deep ZFS insight: pool health, vdev topology, per-drive SMART, and ARC cache analytics that show **how well your ZFS is actually working**. Deployed as a **socket-activated systemd service**: zero CPU, zero RAM and zero subprocesses while nobody is watching, **under 10 MB** while you are.
 
 <p>
   <a href="https://github.com/paepckehh/zdash/actions/workflows/golang.yml"><img alt="CI" src="https://github.com/paepckehh/zdash/actions/workflows/golang.yml/badge.svg?style=for-the-badge" /></a>
@@ -15,12 +15,14 @@ One `go run`. Zero dependencies. Real-time pool health, ARC statistics, SMART dr
   <img alt="Go" src="https://img.shields.io/badge/Go-1.27%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" />
   <img alt="OS" src="https://img.shields.io/badge/OS-Linux%20%7C%20FreeBSD%20%7C%20macOS-00BFFF?style=for-the-badge" />
   <img alt="Deps" src="https://img.shields.io/badge/Dependencies-ZERO-22b14c?style=for-the-badge" />
-  <img alt="CGO" src="https://img.shields.io/badge/CGO-0%25%20%7C%20static%20binary-8A2BE2?style=for-the-badge" />
+  <img alt="Idle cost" src="https://img.shields.io/badge/Idle%20cost-0%25%20CPU%20%7C%200%20MB-8A2BE2?style=for-the-badge" />
+  <img alt="Active RAM" src="https://img.shields.io/badge/Active%20RAM-%3C%2010%20MB-ff69b4?style=for-the-badge" />
 </p>
 
 <p>
+  <a href="#-what-is-zdash"><b>What is zDash?</b></a> ·
   <a href="#-quick-start"><b>Quick Start</b></a> ·
-  <a href="#-watch-it-sleep"><b>The Sleep Engine</b></a> ·
+  <a href="#-the-zero-cost-contract"><b>The Zero-Cost Contract</b></a> ·
   <a href="#-screenshots"><b>Screenshots</b></a> ·
   <a href="#-api"><b>API</b></a> ·
   <a href="#-architecture--flow"><b>Architecture</b></a> ·
@@ -32,18 +34,23 @@ One `go run`. Zero dependencies. Real-time pool health, ARC statistics, SMART dr
 
 </div>
 
-## 🎯 Why zDash?
+## 🎯 What is zDash?
 
-Most ZFS monitoring stacks want a Prometheus, a Grafana, an exporter and a couple of gigabytes of RSS before they show you a single donut chart. zDash lives at the other end of the spectrum:
+**1. 🖥️ A general system dashboard.** OS and codename, kernel, SMBIOS vendor/product/version, CPU model, cores and clocks, memory and swap, load averages, uptime, locale, default-route interface and IPv4, process count — a fastfetch-style host overview, always one tab away. Works on any Linux host; FreeBSD and macOS hosts get the pool and SMART views too.
 
-- 📊 **Real-time pool telemetry** — parses `zpool list -v --json` into typed structs: health, capacity, fragmentation, and the full recursive vdev/disk topology.
-- 💾 **SMART drive health** — probes every drive `smartctl` can see in parallel (12 s per-device budget) and surfaces temperatures, wear, power-on hours, and ATA/NVMe-specific attributes in per-drive tabs.
-- ⚡ **ARC cache analytics** — reads the `/proc/spl/kstat/zfs/arcstats` kstat directly: hit ratio, MRU/MFU breakdown, demand vs prefetch, L2ARC, with a live hit/miss stream and history sparkline.
-- 🖥️ **Host snapshot** — a fastfetch-style inventory from `/proc` + `/sys`: OS/codename, kernel, SMBIOS vendor/product, CPU model and clocks, memory, swap, load, uptime, default-route interface + IPv4.
-- 😴 **The sleep engine** — zero-work startup, session-scoped background refresh, and a runtime that parks itself (GC off, heap returned to the OS, one OS thread) the moment the last browser tab closes. See [below](#-watch-it-sleep).
-- 🎨 **Reactive single-file UI** — ~2,200 lines of vanilla JS/CSS/SVG, embedded via `embed.FS`. Cards are mounted once and updated in place, so donuts, bars and sparklines *animate between polls* instead of flickering.
-- 🛡️ **Security-first defaults** — loopback bind, GET-only routes (automatic 405s), context timeouts everywhere, every dynamic string HTML-escaped, and deployment modules with a genuinely hardened systemd unit.
-- 🐧 **NixOS-aware** — auto-detects the per-profile `zpool`/`smartctl` under `/run/current-system/sw/bin/`, so it Just Works™ on NixOS without PATH tricks.
+**2. 💾 ZFS-aware — the unique bit.** Most dashboards show you a filesystem; zDash shows you *how well ZFS is working*:
+
+- **Pools** — health, capacity, fragmentation and the full recursive vdev/disk topology, straight from `zpool list -v --json`.
+- **Drives** — per-drive SMART tabs (temperatures, wear, power-on hours, ATA/NVMe-specific attributes) probed in parallel, one 12 s budget per device.
+- **ARC cache** — the part that decides your real storage performance: hit ratio with a live hit/miss stream and history sparkline, MRU/MFU breakdown, demand vs prefetch, L2ARC stats, read from the ZFS kstat directly.
+
+**3. 😴 Resource-aware — the coolest bit.** zDash is the dashboard you can install on *every machine you own* without a second thought:
+
+- **Socket-activated by systemd** — the binary only exists while someone is actually looking at the dashboard. No connection, no process.
+- **Zero passive cost** — no polling daemons, no cron scrapes, no resident agent: 0 CPU, 0 RAM, 0 subprocesses while idle.
+- **Under 10 MB while you watch** — measured 9.3 MB RSS under active traffic (the shipped NixOS modules pin `GOMEMLIMIT=8MiB` to make that the default).
+- **Minimal CPU while you watch** — one `zpool` run per ~5 s and one `smartctl` sweep per minute, *shared by every open tab*, served from a pre-encoded TTL cache.
+- **Featherweight client** — a single ~128 KB page, no framework, no build step, no `node_modules`; a few KB of JSON every 5 s.
 
 <div align="center">
 
@@ -78,21 +85,24 @@ go install paepcke.de/zdash/cmd/zdash@latest
 
 ---
 
-## 😴 Watch It Sleep
+## 😴 The Zero-Cost Contract
 
-zDash was designed around one question: *what should a dashboard cost when nobody is looking?* The answer: **nothing**.
-
-The process boots into deep sleep — it binds its listener and parks the runtime without running a single `zpool` or `smartctl` subprocess or reading a byte of `/proc`. The first HTTP connection instantly wakes it; when the last connection has been gone for 3 seconds, it sleeps again:
+zDash was designed around one question: *what should a dashboard cost when nobody is looking?* The answer: **nothing** — not "a little", not "one idle thread", nothing. With the socket-activated deployment the process literally does not exist between visits:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DeepSleep : bind listener, park the runtime
-    DeepSleep --> Active : first client connects
+    [*] --> SocketArmed : systemd holds the listening socket
+    SocketArmed --> DeepSleep : first connection starts the binary
+    DeepSleep --> Active : any connection wakes it instantly
     Active --> DeepSleep : last client gone for 3s
-    DeepSleep --> [*] : EXIT_ON_IDLE=1 (exit 0)
+    DeepSleep --> SocketArmed : EXIT_ON_IDLE=1 (exit 0)
+    note right of SocketArmed
+        process does not exist:
+        0 CPU, 0 RAM, 0 subprocesses
+    end note
     note right of DeepSleep
-        GC disabled, heap returned to the OS,
-        GOMAXPROCS=1, zero subprocesses
+        GC off, heap returned to the OS,
+        GOMAXPROCS=1, idle CPU ~ 0
     end note
     note right of Active
         background refresher keeps every endpoint
@@ -100,27 +110,33 @@ stateDiagram-v2
     end note
 ```
 
+### Measured, not promised
+
+| State | CPU | RAM | `zpool` / `smartctl` runs |
+|---|---|---|---|
+| Nobody looking (socket-activated module) | **0** — process doesn't exist | **0 MB** | **0** |
+| Nobody looking (plain module, deep sleep) | ~0 (one parked thread) | ~7 MB boot, ~9 MB parked | **0** |
+| You are looking | a few ms per refresh cycle | **9.3 MB** (measured, `GOMEMLIMIT=8MiB`) | 1 `zpool` / ~5 s, 1 `smartctl` sweep / 60 s |
+
+All open tabs share the same TTL cache, so ten dashboards watching one host still cost one `zpool` run every ~5 s. The moment the last tab closes, the refresher stops, the cache drops, the GC switches off, the heap is handed back to the OS, and all but one OS thread park. A late fetch still in flight can never smuggle stale bytes into the next session (session-generation guard on every cache store).
+
 <details>
 <summary><b>🛠️ What "deep sleep" actually does under the hood</b></summary>
 
-- `debug.SetGCPercent(-1)` + `debug.FreeOSMemory()` — the GC is switched off and the whole heap is handed back to the OS.
+- `debug.SetGCPercent(-1)` + `debug.FreeOSMemory()` — the GC is switched off and the heap is returned to the OS.
 - `runtime.GOMAXPROCS(1)` — all but one OS thread are parked.
 - The background refresher stops and its cache is dropped; pages go back to the OS.
 - Only the listener epoll stays armed — the first new connection wakes the process instantly, restoring `GOMAXPROCS` and the GC (`GOGC`-tunable).
-- A late fetch that was still in flight when the session ended can never smuggle stale bytes into the next session (session-generation guard on every cache store).
 - With `EXIT_ON_IDLE=1` the process exits (status 0) at the sleep transition — pair it with a systemd `.socket` unit and idle RAM/CPU are *exactly* zero; systemd restarts the binary on the next connection.
 
 </details>
 
-### 💰 The cost model
+### 🪶 Featherweight on the client, too
 
-| | While you watch | While you don't |
-|---|---|---|
-| `zpool` runs | 1 per ~5 s — all open tabs share one TTL cache | **0** |
-| `smartctl` sweeps | 1 per 60 s, all drives in parallel | **0** |
-| CPU | a few ms per refresh cycle | **effectively zero** |
-| RAM | comfortably inside a 128 MB cgroup cap | heap returned to the OS |
-| Process | running, GC on, full parallelism | parked, GC off — or *gone entirely* with `EXIT_ON_IDLE=1` |
+- One **~128 KB** HTML payload per browser (then cached) — the entire UI is a single file: no framework, no build step, no `node_modules`.
+- After that, just four small JSON responses every 5 s (a few KB total).
+- The UI is mount-once / update-in-place: cards are never rebuilt, so the browser spends its cycles on CSS transitions, not DOM churn.
+- Tab hidden? Polling pauses — and the server deep-sleeps ~30 s later. Nothing anywhere burns cycles for an audience of zero.
 
 ---
 
@@ -191,9 +207,12 @@ flowchart LR
 | `SOCKET_ACTIVATION` | `0` | Set `1` to adopt the fd systemd passes via `LISTEN_FDS` (Linux only, opt-in — a stray `LISTEN_FDS` can never hijack fd 3) |
 | `EXIT_ON_IDLE` | `0` | Set `1` to `exit(0)` once the last session closes (pair with a systemd `.socket` unit) |
 
+The standard Go runtime knobs work too: the shipped NixOS modules set `GOMEMLIMIT=8MiB` to pin the active footprint under 10 MB, and the wake path honors `GOGC` for the GC target percentage.
+
 ```bash
 ./zdash                                   # defaults: localhost only
 BIND_ADDR=0.0.0.0:9090 ./zdash           # custom port, all interfaces
+GOMEMLIMIT=8MiB ./zdash                  # keep RSS under 10 MB anywhere
 BIND_ADDR=127.0.0.1:8080 go run -race ./cmd/zdash   # with the race detector
 ```
 
@@ -204,7 +223,7 @@ BIND_ADDR=127.0.0.1:8080 go run -race ./cmd/zdash   # with the race detector
 
 ## 🖥️ Deployment: NixOS + systemd
 
-The repo ships **two alternative, identically hardened NixOS modules** (self-contained, all addresses `127.0.0.1:9091`, fronted by a Caddy vhost `http://zdash` that reverse-proxies to the service). Import exactly **one** of them:
+The repo ships **two alternative, identically hardened NixOS modules** (self-contained, all addresses `127.0.0.1:9091`, fronted by a Caddy vhost `http://zdash` that reverse-proxies to the service, `GOMEMLIMIT=8MiB` pinned). Import exactly **one** of them:
 
 ```nix
 # configuration.nix
@@ -251,7 +270,7 @@ go build -C cmd/zdash -o zdash \
 
 - **The Pools tab shows a 500 error** — the process needs read access to `/dev/zfs` (typically root, or membership in the `zfs`/`disk` group). The error body includes a permissions hint.
 - **No SMART tabs** — `smartctl` is missing or not permitted for this user; check `smartctl_available` in `/api/smart`. The endpoint still returns `200` so the UI can hide the tabs gracefully.
-- **Running on a host without ZFS** — the server responds `200` everywhere; the dashboard simply hides the Pools/ARC tabs.
+- **Running on a host without ZFS** — the server responds `200` everywhere; the dashboard simply hides the Pools/ARC tabs and keeps showing the system overview.
 - **Windows** — the library compiles, but there is no `zpool` on Windows; treat it as a build-matrix curiosity, not a target.
 - **Why does my hidden browser tab re-wake the server?** — the server drops dormant keep-alive sockets after its 30 s idle timeout and deep-sleeps; the tab's next poll on becoming visible reconnects instantly and wakes it.
 
@@ -304,6 +323,6 @@ Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
 
 **Built with ❤️ using idiomatic Go, embedded assets, and modern web standards — no frameworks, no build step, no node_modules.**
 
-[Quick Start](#-quick-start) · [The Sleep Engine](#-watch-it-sleep) · [API](#-api) · [Architecture](#-architecture--flow) · [Deployment](#-deployment-nixos--systemd) · [Contributing](#-contributing)
+[What is zDash?](#-what-is-zdash) · [Quick Start](#-quick-start) · [The Zero-Cost Contract](#-the-zero-cost-contract) · [API](#-api) · [Architecture](#-architecture--flow) · [Deployment](#-deployment-nixos--systemd) · [Contributing](#-contributing)
 
 </div>
