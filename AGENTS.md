@@ -65,8 +65,8 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 ├── embed/index.html  # single-file dashboard (HTML/CSS/JS), served via embed.FS
 ├── testdata/         # canned fixtures: sample.json, arcstats, fib_trie, route, smart_{scan,sda,nvme}.json, ...
 ├── Makefile
-├── .goreleaser.yml
-└── .github/workflows/  # golang.yml (build/vet), release.yml (goreleaser on v* tags), codeql.yml
+├── .goreleaser.yml   # goreleaser v2 config: linux/freebsd/darwin × amd64/arm64, tar.gz + deb/rpm
+└── .github/workflows/  # golang.yml (build/vet/test matrix), release.yml (goreleaser on v* tags), codeql.yml
 ```
 
 `go build ./cmd/zdash` and `go test ./...` from the repo root both succeed today.
@@ -95,9 +95,15 @@ From the repo root:
   go run paepcke.de/zdash/cmd/zdash@latest
   ```
 
-- **CI** (`.github/workflows/golang.yml`): `CGO_ENABLED=0 go build ./...` then `go vet ./...` on Go 1.26 across ubuntu/macos/windows. Note: Windows is in the matrix even though the `zpool` binary is effectively never present there.
+- **CI** (`.github/workflows/golang.yml`): `CGO_ENABLED=0 go build ./...`, `go vet ./...`, and `go test ./...` (tests are skipped on the Windows runner because the subprocess-stub tests write `#!/bin/sh` scripts) across ubuntu/macos/windows. Go comes from `go-version-file: go.mod`, so the matrix always matches the module's toolchain line. Note: Windows is in the matrix even though the `zpool` binary is effectively never present there.
 
-- **Releases** (`.github/workflows/release.yml`): triggered by `v*` tags, runs `goreleaser release --clean` with `CGO_ENABLED=0`. See `.goreleaser.yml` for targets (linux/freebsd/darwin, amd64/arm64) and `nfpms` block for `.deb`/`.rpm` packaging. Note the goreleaser `license` field says "BSD 3-Clause" while `LICENSE` is MIT — do not "fix" this blindly without confirming maintainer intent.
+- **Releases** (`.github/workflows/release.yml`): triggered by `v*` tags (plus manual `workflow_dispatch`), runs goreleaser v2.18.2 (`goreleaser/goreleaser-action@v7`) with `release --clean` on ubuntu-24.04, Go from `go-version-file: go.mod`. The v2 config (`.goreleaser.yml`) runs `go mod tidy` + `go test ./...` as before-hooks, cross-compiles all six targets (linux/freebsd/darwin × amd64/arm64, `CGO_ENABLED=0`, `-trimpath -s -w`, version ldflags into both `main.version` and `zdash.Version`), packs directory-wrapped `tar.gz` archives (`zdash_<version>_<os>_<arch>.tar.gz` with LICENSE + README) plus `.deb`/`.rpm` (linux only, conventional file names, docs installed to `/usr/share/doc/zdash/`), writes `checksums.txt`, and cuts a non-draft release with `prerelease: auto`. Changelog excludes `docs:`/`test:`/`ci:`/`chore:`/`style:` commits. `mod_timestamp` is pinned to the commit timestamp for reproducible builds.
+
+- **Local release dry run** (Makefile `release-snapshot` / `release-check` targets):
+  ```bash
+  make release-check      # goreleaser check — validate .goreleaser.yml
+  make release-snapshot   # goreleaser release --snapshot --clean — full pipeline, publishes nothing (needs goreleaser v2 on $PATH)
+  ```
 
 - **Regenerate `go.mod`** (Makefile `deps` target): deletes and re-creates `go.mod`/`go.sum` via `go mod init paepcke.de/zdash && go mod tidy`. Only run if you intend to wipe the existing module file.
 
@@ -164,7 +170,7 @@ The repo ships TWO alternative NixOS module fragments — self-contained (no ext
 
 ## Gotchas
 
-- **`go.mod` declares `go 1.27.2`** — a recent Go version. Older toolchains will refuse to build. CI pins `1.26`.
+- **`go.mod` declares `go 1.27.2`** — a recent Go version. Older toolchains will refuse to build. CI and the release workflow install Go via `go-version-file: go.mod`, so they always match.
 - **The nix LSP may attach to non-nix files and report bogus `syntax_error` diagnostics on `.go`/`.html` files** — these are spurious; trust `go build`/`go vet` instead.
 - **`make check` does not run `golangci-lint` or `staticcheck`** (both are commented out in the Makefile). Run them manually if you want the fuller static-analysis pass.
 - **The `zpool` binary must be executable by the server process** — typically requires root or membership in the `zfs`/`disk` group. On Linux this usually means read access to `/dev/zfs`. The dashboard will return `500` with a permissions hint otherwise.
@@ -173,4 +179,4 @@ The repo ships TWO alternative NixOS module fragments — self-contained (no ext
 - **`BIND_ADDR=0.0.0.0:…` exposes the dashboard to the network with no auth.** The README warns this requires a reverse proxy + auth. Keep the `127.0.0.1` default when adding examples.
 - **API responses are session-scoped cached JSON.** `zpool` runs at most once per ~5s while a dashboard is open and `smartctl` at most once per 60s, no matter how many clients poll in parallel. The background loop only runs while at least one HTTP connection is alive; with no clients the process deep-sleeps and runs zero subprocesses.
 - **A hidden browser tab keeps its keep-alive socket only for IdleTimeout (30s).** After that the server deep-sleeps; the tab's next poll (on becoming visible) reconnects and wakes it. Do not raise IdleTimeout much without considering this.
-- **The goreleaser `license` field says "BSD 3-Clause"** while `LICENSE` is MIT. Do not "fix" this blindly without confirming maintainer intent.
+- **License fields differ between README and LICENSE.** `LICENSE` (and the goreleaser/nfpm `license: BSD-3-Clause` field, which matches it) is BSD 3-Clause, while the README badge and License section say MIT. Resolve with the maintainer before "fixing" either side.

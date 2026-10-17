@@ -36,6 +36,12 @@ check:
 	# CGO_ENABLED=0 golangci-lint run
 	# CGO_ENABLED=0 staticcheck
 
+release-check:
+	CGO_ENABLED=0 goreleaser check
+
+release-snapshot:
+	CGO_ENABLED=0 goreleaser release --snapshot --clean
+
 prep-git:
 	git remote set-url origin $(PROJECT_URL_HTTPS)
 	git remote -v

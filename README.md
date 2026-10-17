@@ -263,6 +263,15 @@ go build -C cmd/zdash -o zdash \
 ./zdash
 ```
 
+**Reproduce the full release pipeline locally** — [goreleaser](https://goreleaser.com) (v2) cross-compiles every supported target (linux/freebsd/darwin × amd64/arm64, all `CGO_ENABLED=0`, `-trimpath -s -w`, version stamped into binary and dashboard), packs wrapped tarballs plus `.deb`/`.rpm` packages with docs, and writes `checksums.txt`:
+
+```bash
+make release-snapshot   # full dry run: test, build, package, checksums — publishes nothing
+make release-check      # validate .goreleaser.yml only
+```
+
+Releases are cut automatically by the [Release workflow](https://github.com/paepckehh/zdash/actions/workflows/release.yml) whenever a `v*` tag is pushed.
+
 ---
 
 <details>

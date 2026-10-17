@@ -1,10 +1,25 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# goreleaser v2 configuration
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
 builds:
-  -
-    id: "zdash"
-    binary: zdash
+  - id: zdash
     main: ./cmd/zdash
+    binary: zdash
     env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X paepcke.de/zdash.Version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
       - freebsd
@@ -12,29 +27,59 @@ builds:
     goarch:
       - amd64
       - arm64
+
 archives:
-  -
-    id: zdash
-    name_template: "zdash-{{ .Os }}_{{ .Arch }}_{{ .Version }}"
+  - id: zdash
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
     files:
       - LICENSE
       - README.md
+
+nfpms:
+  - id: zdash
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: Michael Paepcke
+    homepage: https://github.com/paepckehh/zdash
+    maintainer: Michael Paepcke <git@paepcke.de>
+    description: |-
+      Zero-dependency, session-scoped monitoring dashboard: OS, CPU,
+      memory, network, ZFS pools, ARC cache and per-drive SMART metrics
+      served as JSON APIs plus an embedded single-file HTML dashboard.
+      Pure Go, statically linked.
+    license: BSD-3-Clause
+    formats:
+      - deb
+      - rpm
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/doc/zdash/LICENSE
+        file_info:
+          mode: 0644
+      - src: ./README.md
+        dst: /usr/share/doc/zdash/README.md
+        file_info:
+          mode: 0644
+
 checksum:
-  name_template: 'checksums.txt'
+  name_template: checksums.txt
+
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ incpatch .Version }}-next"
+
 changelog:
   sort: asc
   filters:
     exclude:
-nfpms:
-  -
-    file_name_template: "zdash_package_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    vendor: Michael Paepcke
-    homepage: https://paepcke.de/zdash
-    maintainer: Michael Paepcke <git@paepcke.de>
-    description: zdash
-    license: BSD 3-Clause
-    formats:
-      - deb
-      - rpm
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "{{ .Tag }}"
