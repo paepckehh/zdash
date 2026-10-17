@@ -160,6 +160,7 @@ The repo ships TWO alternative NixOS module fragments — self-contained (no ext
 - The deep-sleep runtime profile (GC off, FreeOSMemory, GOMAXPROCS 1) must never run inside the test binary: tests build their own `idleGate` with injected callbacks. `BootSleep()` is only called from `main`.
 - No third-party dependencies are permitted by design ("Zero Dependencies" is a headline feature in `README.md`). Do not add requires to `go.mod` without explicit maintainer agreement.
 - The README explicitly labels Go code as "human made/reviewed" and HTML/templates/README as "AI assisted". Keep Go changes minimal and idiomatic.
+- README structure (keep it when editing): `for-the-badge` shields row (live CI badge from `.github/workflows/golang.yml`, release, MIT; static Go/OS/zero-deps/CGO), screenshots at `https://paepcke.de/zdash/screen_{light,dark}.png`, native GitHub Mermaid diagrams (session-lifecycle `stateDiagram-v2` + data-flow `flowchart LR`), collapsible `<details>` sections (sleep-engine internals, unit hardening, FAQ, roadmap, star-history), the API table covering all five routes, and the env-var table covering `BIND_ADDR`/`SOCKET_ACTIVATION`/`EXIT_ON_IDLE`. When endpoints/env vars change, update those tables and the architecture walkthrough in the same change; keep the Go version badge in sync with the `go` line in `go.mod`. Do not add a Go Report Card badge (service sunset); CI + release badges are the live signals.
 
 ## Gotchas
 
