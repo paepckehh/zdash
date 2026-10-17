@@ -9,7 +9,7 @@ import (
 // socket activation (a .socket unit with ListenStream) systemd holds the
 // bound socket and passes it as file descriptor 3 when activating the
 // service. Adoption is opt-in and Linux-only: it requires
-// ZDASH_SOCKET_ACTIVATION=1 in the environment, otherwise — and on every
+// SOCKET_ACTIVATION=1 in the environment, otherwise — and on every
 // other platform — zdash always binds addr itself (e.g. BIND_ADDR).
 func Listen(addr string) (net.Listener, error) {
 	if ln := systemdListener(); ln != nil {

@@ -12,7 +12,7 @@ import (
 // socketActivationEnv opts in to systemd socket activation. Adoption of
 // the systemd-passed fd is disabled by default so a stray LISTEN_FDS in
 // the environment can never hijack fd 3 of an ordinary zdash run.
-const socketActivationEnv = "ZDASH_SOCKET_ACTIVATION"
+const socketActivationEnv = "SOCKET_ACTIVATION"
 
 // passedFiles keeps adopted socket-activation files referenced so their
 // finalizers cannot close the underlying descriptors for the lifetime of

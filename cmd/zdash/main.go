@@ -58,7 +58,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("⚠️  listen failed: %v", err)
 	}
-	if os.Getenv("ZDASH_EXIT_ON_IDLE") == "1" {
+	if os.Getenv("EXIT_ON_IDLE") == "1" {
 		// Exit instead of deep-sleeping when the last session closes; the
 		// socket unit restarts the service on demand, so idle RAM/CPU
 		// drop to zero.

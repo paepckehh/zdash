@@ -10,17 +10,17 @@ import (
 )
 
 func TestSystemdListener_DisabledByDefault(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "")
+	t.Setenv("SOCKET_ACTIVATION", "")
 	t.Setenv("LISTEN_FDS", "1")
 	t.Setenv("LISTEN_PID", strconv.Itoa(os.Getpid()))
 	if ln := systemdListener(); ln != nil {
 		ln.Close()
-		t.Fatal("socket adoption happened without ZDASH_SOCKET_ACTIVATION=1")
+		t.Fatal("socket adoption happened without SOCKET_ACTIVATION=1")
 	}
 }
 
 func TestSystemdListener_EnabledButNotActivated(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "1")
+	t.Setenv("SOCKET_ACTIVATION", "1")
 	t.Setenv("LISTEN_FDS", "")
 	if ln := systemdListener(); ln != nil {
 		ln.Close()
@@ -29,7 +29,7 @@ func TestSystemdListener_EnabledButNotActivated(t *testing.T) {
 }
 
 func TestSystemdListener_PIDMismatch(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "1")
+	t.Setenv("SOCKET_ACTIVATION", "1")
 	t.Setenv("LISTEN_FDS", "1")
 	t.Setenv("LISTEN_PID", "1") // not this process
 	if ln := systemdListener(); ln != nil {
@@ -39,7 +39,7 @@ func TestSystemdListener_PIDMismatch(t *testing.T) {
 }
 
 func TestSystemdListener_GarbageEnv(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "1")
+	t.Setenv("SOCKET_ACTIVATION", "1")
 	for _, tc := range []struct{ fds, pid string }{
 		{"garbage", ""},
 		{"-1", ""},

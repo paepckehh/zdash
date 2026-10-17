@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// Socket adoption is opt-in (ZDASH_SOCKET_ACTIVATION=1), so without the
+// Socket adoption is opt-in (SOCKET_ACTIVATION=1), so without the
 // env var Listen must always bind its own socket, even when a stray
 // LISTEN_FDS is present.
 func TestListen_FallbackBind(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "")
+	t.Setenv("SOCKET_ACTIVATION", "")
 	t.Setenv("LISTEN_FDS", "")
 	ln, err := Listen("127.0.0.1:0")
 	if err != nil {
@@ -22,7 +22,7 @@ func TestListen_FallbackBind(t *testing.T) {
 }
 
 func TestListen_FallbackDespiteStrayListenFds(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "")
+	t.Setenv("SOCKET_ACTIVATION", "")
 	t.Setenv("LISTEN_FDS", "1")
 	t.Setenv("LISTEN_PID", "999999")
 	ln, err := Listen("127.0.0.1:0")
@@ -36,7 +36,7 @@ func TestListen_FallbackDespiteStrayListenFds(t *testing.T) {
 }
 
 func TestListen_BindError(t *testing.T) {
-	t.Setenv("ZDASH_SOCKET_ACTIVATION", "")
+	t.Setenv("SOCKET_ACTIVATION", "")
 	if _, err := Listen("256.256.256.256:1"); err == nil {
 		t.Fatal("Listen with invalid address did not fail")
 	}
