@@ -396,3 +396,92 @@ func TestFirstNonEmpty(t *testing.T) {
 		t.Errorf("got %q, want empty", got)
 	}
 }
+
+func TestParseOSRelease_VariantIDFallbackAndBuildID(t *testing.T) {
+	// VARIANT must win over VARIANT_ID, but VARIANT_ID fills the field when
+	// VARIANT is absent; BUILD_ID is picked up independently.
+	in := []byte("ID=nixos\nPRETTY_NAME=\"NixOS 25.05\"\nVERSION=\"25.05 (X\"\n" +
+		"VERSION_CODENAME=X\nVARIANT_ID=server\nBUILD_ID=25.05.1234\n")
+	id, pretty, version, codename, variant, buildID := parseOSRelease(in)
+	if id != "nixos" || pretty != "NixOS 25.05" || version != "25.05 (X" || codename != "X" {
+		t.Errorf("parse = %q/%q/%q/%q", id, pretty, version, codename)
+	}
+	if variant != "server" {
+		t.Errorf("variant = %q, want server (VARIANT_ID fallback)", variant)
+	}
+	if buildID != "25.05.1234" {
+		t.Errorf("buildID = %q, want 25.05.1234", buildID)
+	}
+
+	in = []byte("VARIANT=desktop\nVARIANT_ID=minimal\n")
+	_, _, _, _, variant, _ = parseOSRelease(in)
+	if variant != "desktop" {
+		t.Errorf("variant = %q, want desktop (VARIANT wins)", variant)
+	}
+}
+
+func TestParseMemInfo_MissingMemAvailableFallsBackToFreePlusCached(t *testing.T) {
+	// Kernels/containers without MemAvailable must fall back to
+	// used = total - (free + cached) instead of reporting zero used.
+	in := []byte("MemTotal:       1000 kB\nMemFree:         200 kB\nCached:          100 kB\n")
+	total, free, available, cached, _, _ := parseMemInfo(in)
+	if total != 1000*1024 || free != 200*1024 || cached != 100*1024 {
+		t.Errorf("parse = total=%d free=%d cached=%d", total, free, cached)
+	}
+	if available != 0 {
+		t.Errorf("available = %d, want 0 when MemAbsent", available)
+	}
+	// The fallback arithmetic lives in fetchSysInfo; assert the building
+	// block it needs: used = total - (free + cached) = 700 kB.
+	if want := uint64(700 * 1024); total-(free+cached) != want {
+		t.Errorf("total-(free+cached) = %d, want %d", total-(free+cached), want)
+	}
+}
+
+func TestParseCPUInfo_VendorPhysicalAndLogical(t *testing.T) {
+	in := []byte("processor\t: 0\nvendor_id\t: AuthenticAMD\n" +
+		"cpu family\t: 25\nmodel name\t: AMD Ryzen 9 5950X\ncpu cores\t: 8\ncpu MHz\t\t: 3400.000\n" +
+		"processor\t: 1\nprocessor\t: 2\n")
+	model, vendor, logical, physical, freq := parseCPUInfo(in)
+	if model != "AMD Ryzen 9 5950X" {
+		t.Errorf("model = %q", model)
+	}
+	if vendor != "AuthenticAMD" {
+		t.Errorf("vendor = %q", vendor)
+	}
+	if logical != 3 {
+		t.Errorf("logical = %d, want 3", logical)
+	}
+	if physical != 8 {
+		t.Errorf("physical = %d, want 8", physical)
+	}
+	if freq != 3400.0 {
+		t.Errorf("freq = %v, want 3400", freq)
+	}
+}
+
+func TestProduceSysInfo_ContextCanceledAnswers500(t *testing.T) {
+	// produceSysInfo must render the 500 JSON error body when the gather
+	// fails on a dead context — the only error path fetchSysInfo has.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	body, status := produceSysInfo(ctx)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
+	}
+	if !strings.Contains(string(body), `"error"`) {
+		t.Errorf("body = %q, want JSON error body", body)
+	}
+}
+
+func TestReadCPUFreqLimits_MissingSysfs(t *testing.T) {
+	// On hosts without a cpufreq driver the limits stay zero and the
+	// dashboard degrades to only reporting the /proc/cpuinfo frequency.
+	if _, err := os.Stat(cpuFreqBase); err == nil {
+		t.Skip("cpufreq sysfs present on host; zero-limits path not testable here")
+	}
+	min, max := readCPUFreqLimits()
+	if min != 0 || max != 0 {
+		t.Errorf("limits = %v/%v, want 0/0 without cpufreq", min, max)
+	}
+}

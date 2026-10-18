@@ -408,3 +408,119 @@ func smartShBody(payload string) []byte {
 	// JSON cannot break the script body.
 	return []byte("#!/bin/sh\ncat <<" + "EOF_SMART_FIXTURE" + "\n" + payload + "\nEOF_SMART_FIXTURE\n")
 }
+
+func TestProduceSmart_ScanFailureKeeps200(t *testing.T) {
+	// A failing smartctl scan must degrade to 200 with
+	// smartctl_available=false (the capability contract the frontend
+	// relies on to hide the SMART tabs) — never a 500.
+	withSmartctlBin(t, writeSmartScript(t, "exit 1"))
+	body, status := produceSmart(context.Background())
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	var report SmartReport
+	if err := json.Unmarshal(body, &report); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if report.SmartctlAvailable {
+		t.Error("smartctl_available = true, want false on scan failure")
+	}
+	if report.ScanError == "" {
+		t.Error("scan_error should be populated on scan failure")
+	}
+}
+
+func TestProduceSmart_ContextCanceledKeeps200(t *testing.T) {
+	// Even a dead context must keep the capability contract: 200 with
+	// available=false, not a 500 (the dashboard hides tabs, it does not
+	// error).
+	withSmartctlBin(t, writeSmartScript(t, "sleep 10"))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	body, status := produceSmart(ctx)
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if strings.Contains(string(body), `"smartctl_available":true`) {
+		t.Errorf("body = %q, want smartctl_available=false", body)
+	}
+}
+
+func TestParseSmartAll_NVMeFallbacks(t *testing.T) {
+	// A NVMe drive whose top-level power_on_time / power_cycles / current
+	// temperature are absent must backfill them from the NVMe health log.
+	raw := &rawSmartAll{
+		Device: struct {
+			Type     string `json:"type"`
+			Protocol string `json:"protocol"`
+		}{Type: "nvme", Protocol: "NVMe"},
+		NVMeHealth: &struct {
+			CriticalWarning         int    `json:"critical_warning"`
+			Temperature             int    `json:"temperature"`
+			AvailableSpare          int    `json:"available_spare"`
+			AvailableSpareThreshold int    `json:"available_spare_threshold"`
+			PercentageUsed          int    `json:"percentage_used"`
+			DataUnitsRead           uint64 `json:"data_units_read"`
+			DataUnitsWritten        uint64 `json:"data_units_written"`
+			HostReads               uint64 `json:"host_reads"`
+			HostWrites              uint64 `json:"host_writes"`
+			ControllerBusyTime      uint64 `json:"controller_busy_time"`
+			PowerCycles             uint64 `json:"power_cycles"`
+			PowerOnHours            uint64 `json:"power_on_hours"`
+			UnsafeShutdowns         uint64 `json:"unsafe_shutdowns"`
+			MediaErrors             uint64 `json:"media_errors"`
+			NumErrLogEntries        uint64 `json:"num_err_log_entries"`
+			WarningTempTime         uint64 `json:"warning_temp_time"`
+			CriticalCompTime        uint64 `json:"critical_comp_time"`
+			TemperatureSensors      []int  `json:"temperature_sensors"`
+		}{
+			Temperature:  42,
+			PowerOnHours: 1234,
+			PowerCycles:  56,
+		},
+	}
+	d := parseSmartAll(raw)
+	if d.NVMe == nil {
+		t.Fatal("missing nvme health")
+	}
+	if d.TemperatureCurrent != 42 {
+		t.Errorf("temperature = %d, want 42 (nvme fallback)", d.TemperatureCurrent)
+	}
+	if d.PowerOnHours != 1234 {
+		t.Errorf("power_on_hours = %d, want 1234 (nvme fallback)", d.PowerOnHours)
+	}
+	if d.PowerCycleCount != 56 {
+		t.Errorf("power_cycle_count = %d, want 56 (nvme fallback)", d.PowerCycleCount)
+	}
+}
+
+func TestFetchSmartScan_ExitNonzeroWithOutputIsNotFatal(t *testing.T) {
+	// smartctl exits non-zero for some scan conditions while still
+	// emitting valid JSON (e.g. devices behind SAT); only empty output
+	// is a scan failure.
+	bin := writeSmartScript(t, "cat "+shellQuote(filepath.Join("testdata", "smart_scan.json"))+"\nexit 2")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	scan, err := fetchSmartScan(ctx, bin)
+	if err != nil {
+		t.Fatalf("fetchSmartScan: %v (non-zero exit with output must parse)", err)
+	}
+	if len(scan.Devices) != 4 {
+		t.Errorf("devices = %d, want 4", len(scan.Devices))
+	}
+}
+
+func TestFetchSmartDevice_ExitNonzeroWithOutputIsNotFatal(t *testing.T) {
+	// A failing drive makes smartctl exit non-zero while the JSON still
+	// carries the failing health status the dashboard must surface.
+	bin := writeSmartScript(t, "cat "+shellQuote(filepath.Join("testdata", "smart_sda.json"))+"\nexit 4")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	d, err := fetchSmartDevice(ctx, bin, "/dev/sda")
+	if err != nil {
+		t.Fatalf("fetchSmartDevice: %v (non-zero exit with output must parse)", err)
+	}
+	if d.ATA == nil {
+		t.Error("missing ATA health from failing-drive output")
+	}
+}

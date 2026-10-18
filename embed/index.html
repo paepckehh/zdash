@@ -857,6 +857,16 @@ body::after {
 
   function pct(n, d) { return d ? Math.min((n / d) * 100, 100) : 0; }
 
+  /* Absolute endpoint URLs. The dashboard is often served under a path
+     prefix or subpath via a reverse proxy (Caddy subpath routes, systemd
+     port forwarding); a root-relative '/api/…' fetch would then miss the
+     server. Resolving against document.baseURI makes every poll hit the
+     origin that served the page. */
+  function api(name) {
+    try { return new URL('api/' + name, document.baseURI).href; }
+    catch { return 'api/' + name; }
+  }
+
   /* error state markup: alert icon + message + detail */
   function stateErr(msg, detail) {
     return `<div class="state-err">
@@ -1345,7 +1355,7 @@ body::after {
 
   async function fetchSysInfo() {
     try {
-      const res = await fetch('/api/sysinfo');
+      const res = await fetch(api('sysinfo'));
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1469,7 +1479,7 @@ body::after {
 
   async function fetchPools() {
     try {
-      const res = await fetch('/api/zpool');
+      const res = await fetch(api('zpool'));
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -1827,7 +1837,7 @@ body::after {
 
   async function fetchARC() {
     try {
-      const res = await fetch('/api/arc');
+      const res = await fetch(api('arc'));
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -2107,7 +2117,7 @@ body::after {
 
   async function fetchSmart() {
     try {
-      const res = await fetch('/api/smart');
+      const res = await fetch(api('smart'));
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       state.latest.smart = data;

@@ -136,11 +136,14 @@ func TestHandleIndex(t *testing.T) {
 	if !strings.Contains(body, "Pool &amp; ARC Dashboard") && !strings.Contains(body, "Pool & ARC Dashboard") {
 		t.Errorf("body missing title marker; got %d bytes", len(body))
 	}
-	if !strings.Contains(body, "/api/zpool") {
-		t.Error("body does not reference /api/zpool endpoint")
+	if !strings.Contains(body, "api/zpool") && !strings.Contains(body, "api/' + name") {
+		t.Error("body does not reference the zpool API endpoint")
 	}
-	if !strings.Contains(body, "/api/arc") {
-		t.Error("body does not reference /api/arc endpoint")
+	if !strings.Contains(body, "api/arc") && !strings.Contains(body, "api/' + name") {
+		t.Error("body does not reference the arc API endpoint")
+	}
+	if strings.Contains(body, "__ZDASH_VERSION__") {
+		t.Error("body still contains an unreplaced version placeholder")
 	}
 }
 
@@ -210,6 +213,89 @@ func TestFetchZpool_ContextCanceled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from canceled context, got nil")
 	}
+}
+
+func TestHandleZPoolAPI_GET(t *testing.T) {
+	cache.flush()
+	// Point the producer at a stubbed zpool so the full handler path is
+	// deterministic (no dependency on a zpool install or the NixOS path).
+	withZpoolBin(t, writeEmitter(t, string(readSample(t))))
+	req := httptest.NewRequest(http.MethodGet, "/api/zpool", nil)
+	rec := httptest.NewRecorder()
+	HandleZPoolAPI(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q, want application/json*", ct)
+	}
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+	var got ZPoolOutput
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.Pools) != 2 {
+		t.Errorf("pools = %d, want 2", len(got.Pools))
+	}
+	if _, ok := got.Pools["tank"]; !ok {
+		t.Error(`missing pool "tank"`)
+	}
+}
+
+func TestProduceZpool_ExecFailureAnswers500(t *testing.T) {
+	// A failing zpool must yield the 500 JSON error body with the
+	// permissions hint, never a panic or an empty 200.
+	withZpoolBin(t, writeEmitter(t, ""))
+	body, status := produceZpool(context.Background())
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
+	}
+	if !strings.Contains(string(body), `"error"`) {
+		t.Errorf("body = %q, want JSON error body", body)
+	}
+	if !strings.Contains(string(body), "zpool") {
+		t.Errorf("body = %q, want the permissions hint", body)
+	}
+}
+
+func TestProduceZpool_ContextCanceledAnswers500(t *testing.T) {
+	withZpoolBin(t, writeScript(t, "sleep 10"))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	body, status := produceZpool(ctx)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
+	}
+	if !strings.Contains(string(body), `"error"`) {
+		t.Errorf("body = %q, want JSON error body", body)
+	}
+}
+
+func TestResolveZpoolBin(t *testing.T) {
+	// On a host without the NixOS layout the resolver falls back to the
+	// $PATH basename; on NixOS (where /run/current-system/sw/bin/zpool
+	// exists) it prefers the absolute path.
+	got := resolveZpoolBin()
+	if _, err := os.Stat(nixpath); err == nil {
+		if got != nixpath {
+			t.Errorf("resolveZpoolBin = %q, want %q", got, nixpath)
+		}
+		return
+	}
+	if got != "zpool" {
+		t.Errorf("resolveZpoolBin = %q, want \"zpool\" (no NixOS layout)", got)
+	}
+}
+
+// withZpoolBin swaps the package-level zpool resolver for one test,
+// restoring it afterwards (mirroring withSmartctlBin in smart_test.go).
+func withZpoolBin(t *testing.T, bin string) {
+	t.Helper()
+	prev := zpoolResolver
+	zpoolResolver = func() string { return bin }
+	t.Cleanup(func() { zpoolResolver = prev })
 }
 
 // writeEmitter writes a fake zpool executable that prints the given payload

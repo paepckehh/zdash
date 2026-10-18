@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -242,5 +243,95 @@ func TestServeRefresh_MethodNotAllowed(t *testing.T) {
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Errorf("%s: status = %d, want 405", method, rec.Code)
 		}
+	}
+}
+
+func TestServeRefresh_UnknownEndpoint(t *testing.T) {
+	// An unknown endpoint key must answer 404 with a JSON error body and
+	// the shared JSON content type, not 500 and not a plain-text body.
+	req := httptest.NewRequest(http.MethodGet, "/api/nope", nil)
+	rec := httptest.NewRecorder()
+	serveRefresh(rec, req, "nope")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q, want application/json*", ct)
+	}
+	if !strings.Contains(rec.Body.String(), `"error"`) {
+		t.Errorf("body %q missing error key", rec.Body.String())
+	}
+}
+
+func TestRefresher_GetAfterSessionEndedAnswers503(t *testing.T) {
+	// Once a session ends (stop channel closed, cache dropped) a handler
+	// that still lands on get() must not start a new fetch: it answers
+	// 503 so the client retries on the next session instead.
+	r, calls := newTestRefresher(t, "k", time.Hour, []byte(`{}`), 200)
+	r.setActive(true)
+	r.setActive(false)
+
+	body, status := r.get(context.Background(), "k")
+	if status != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", status)
+	}
+	if !strings.Contains(string(body), "session ended") {
+		t.Errorf("body = %q, want the session-ended error", body)
+	}
+	if got := calls.Load(); got != 0 {
+		t.Errorf("producer calls = %d, want 0 (no fetch after session end)", got)
+	}
+}
+
+func TestRefresher_WaiterFallsBackToStaleSnapshot(t *testing.T) {
+	// A caller whose context dies while a fetch is in flight must fall
+	// back to the newest stale snapshot instead of a bare 503.
+	var calls atomic.Int64
+	r := &refresher{
+		ttls: map[string]time.Duration{"k": time.Hour},
+		producers: map[string]producer{
+			"k": func(context.Context) ([]byte, int) {
+				calls.Add(1)
+				return []byte(`{"stale":true}`), 200
+			},
+		},
+		tick:     time.Hour,
+		entries:  make(map[string]*refreshEntry),
+		inflight: make(map[string]*fetchCall),
+	}
+
+	// Populate the cache with a snapshot...
+	r.get(context.Background(), "k")
+	// ...then backdate it so it is stale, and swap in a slow producer so
+	// the next get() goes in flight long enough for the cancel to race in.
+	r.mu.Lock()
+	r.entries["k"].fetched = time.Now().Add(-time.Hour)
+	r.producers["k"] = func(context.Context) ([]byte, int) {
+		calls.Add(1)
+		time.Sleep(80 * time.Millisecond)
+		return []byte(`{"fresh":true}`), 200
+	}
+	r.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { r.get(ctx, "k") }()
+	var c *fetchCall
+	for {
+		r.mu.Lock()
+		c = r.inflight["k"]
+		r.mu.Unlock()
+		if c != nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+
+	body, status := r.wait(ctx, "k", c)
+	if status != 200 {
+		t.Fatalf("status = %d, want 200 (stale snapshot)", status)
+	}
+	if string(body) != `{"stale":true}` {
+		t.Errorf("body = %q, want the stale snapshot", body)
 	}
 }

@@ -96,6 +96,12 @@ func HandleIndex(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(page)
 }
 
+// zpoolResolver is the test seam over resolveZpoolBin (mirroring
+// smartctlResolver in smart.go): it lets tests point produceZpool at a
+// stubbed emitter without depending on a zpool install or the NixOS
+// path layout.
+var zpoolResolver = resolveZpoolBin
+
 // resolveZpoolBin picks the zpool binary to invoke. It prefers the NixOS
 // layout (where zpool is not on the default $PATH) and falls back to the
 // basename lookup, which relies on the caller's $PATH.

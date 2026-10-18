@@ -190,3 +190,38 @@ func TestHandleARCAPI_ServerError(t *testing.T) {
 			rec.Header().Get("Content-Type"))
 	}
 }
+
+func TestParseARCStats_SkipsMetadataAndUnknownRows(t *testing.T) {
+	// Metadata rows (non-integer middle column) must be skipped, unknown
+	// keys ignored, and short rows dropped — the parser must keep working
+	// when kernels add keys.
+	in := []byte("12 1 0x01 0 0\nname  type  data\n" +
+		"hits  4  1000\n" +
+		"dummy_header  text  data\n" +
+		"zio_other  4  77\n" +
+		"tooshort\n")
+	m, err := parseARCStats(in)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if m.Hits != 1000 {
+		t.Errorf("hits = %d, want 1000 (metadata row skipped)", m.Hits)
+	}
+	if m.Size != 0 {
+		t.Errorf("size = %d, want 0 (unknown key ignored)", m.Size)
+	}
+}
+
+func TestProduceARC_ContextCanceledAnswers500(t *testing.T) {
+	// produceARC owns its timeout and error body: a dead context must
+	// yield the 500 JSON error, never a panic or a 200.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	body, status := produceARC(ctx)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", status)
+	}
+	if !strings.Contains(string(body), `"error"`) {
+		t.Errorf("body = %q, want JSON error body", body)
+	}
+}

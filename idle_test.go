@@ -3,6 +3,8 @@ package zdash
 import (
 	"net"
 	"net/http"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"testing"
 	"time"
@@ -346,4 +348,94 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestEnvGOGC(t *testing.T) {
+	cases := []struct {
+		val  string
+		want int
+	}{
+		{"", 100},
+		{"off", -1},
+		{"50", 50},
+		{"1", 1},
+		{"notanumber", 100},
+	}
+	for _, c := range cases {
+		t.Setenv("GOGC", c.val)
+		if got := envGOGC(); got != c.want {
+			t.Errorf("envGOGC(%q) = %d, want %d", c.val, got, c.want)
+		}
+	}
+}
+
+func TestRuntimeWakeRestoresProfiles(t *testing.T) {
+	// runtimeWake(runtimeSleep()) must restore GOMAXPROCS and re-enable
+	// the GC with the configured target percent: the exact profile cycle
+	// main() drives through BootSleep and the ConnState hook.
+	procs := runtime.GOMAXPROCS(0)
+	defer runtime.GOMAXPROCS(procs)
+	if procs < 1 {
+		procs = 1
+	}
+	runtimeSleep()
+	runtimeWake(procs, 100)
+	if got := runtime.GOMAXPROCS(0); got != procs {
+		t.Errorf("GOMAXPROCS = %d, want %d", got, procs)
+	}
+	// The sleep profile's GC-off must be reversible; a freshly woken gate
+	// must not inherit GC-off.
+	runtimeSleep()
+	if prev := debug.SetGCPercent(100); prev != -1 {
+		t.Errorf("SetGCPercent after sleep = %d, want -1 (GC disabled)", prev)
+	}
+}
+
+func TestIdleConnStateDelegatesToSessionsGate(t *testing.T) {
+	// IdleConnState is the http.Server.ConnState hook wired in main; it
+	// must drive the process-wide sessions gate. A wake/sleep cycle
+	// through the hook must park the gate exactly as via the gate method.
+	sessions.mu.Lock()
+	prevGrace := sessions.grace
+	prevWakeFn, prevSleepFn := sessions.wakeFn, sessions.sleepFn
+	sessions.grace = 10 * time.Millisecond
+	sessions.wakeFn = func() {}
+	sessions.sleepFn = func() {}
+	sessions.mu.Unlock()
+	t.Cleanup(func() {
+		sessions.mu.Lock()
+		sessions.grace = prevGrace
+		sessions.wakeFn, sessions.sleepFn = prevWakeFn, prevSleepFn
+		if sessions.timer != nil {
+			sessions.timer.Stop()
+			sessions.timer = nil
+		}
+		sessions.mu.Unlock()
+	})
+
+	IdleConnState(nil, http.StateNew)
+	if sessions.conns.Load() != 1 {
+		t.Fatalf("conns = %d, want 1 after StateNew", sessions.conns.Load())
+	}
+	if sessions.sleeping {
+		t.Fatal("gate still sleeping after StateNew")
+	}
+	IdleConnState(nil, http.StateClosed)
+	if sessions.conns.Load() != 0 {
+		t.Fatalf("conns = %d, want 0 after StateClosed", sessions.conns.Load())
+	}
+	// The grace timer parks the process-wide gate again.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		sessions.mu.Lock()
+		parked := sessions.sleeping
+		sessions.mu.Unlock()
+		if parked {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("gate did not park after the idle grace")
+		}
+		time.Sleep(time.Millisecond)
+	}
 }

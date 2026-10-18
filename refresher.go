@@ -266,7 +266,7 @@ func serveRefresh(w http.ResponseWriter, r *http.Request, key string) {
 func produceZpool(ctx context.Context) ([]byte, int) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	data, err := fetchZpool(ctx, resolveZpoolBin())
+	data, err := fetchZpool(ctx, zpoolResolver())
 	if err != nil {
 		log.Printf("⚠️  zpool fetch failed: %v", err)
 		return errBody("Failed to execute zpool command. Ensure it's installed and you have sufficient permissions (usually root or zfs group)."), http.StatusInternalServerError

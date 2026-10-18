@@ -62,6 +62,7 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 ├── listener_test.go  # portable fallback-bind tests (adoption stays disabled by default)
 ├── listener_linux_test.go # Linux-only adoption tests (env gating, LISTEN_FDS parsing, fd handling)
 ├── cmd/zdash/main.go # package main — wires http.Server + method-aware routes + ConnState hook + BootSleep
+├── cmd/zdash/main_test.go # listenerAddr test (nil listener → "systemd socket")
 ├── embed/index.html  # single-file dashboard (HTML/CSS/JS), served via embed.FS
 ├── testdata/         # canned fixtures: sample.json, arcstats, fib_trie, route, smart_{scan,sda,nvme}.json, ...
 ├── Makefile
@@ -163,6 +164,9 @@ The repo ships TWO alternative NixOS module fragments — self-contained (no ext
 - `CGO_ENABLED=0` is set in CI, in the Makefile `check` target, and in goreleaser. Pure-Go build is a hard requirement (cross-compile to freebsd/darwin depends on it).
 - Error handling pattern throughout `api.go`/`arc.go`/`sysinfo.go`/`smart.go`/`refresher.go`: producers log via `log.Printf` with a leading emoji (`⚠️`), then return a JSON error body plus the 500 status; `serveRefresh` writes `Content-Type` and calls `w.WriteHeader` explicitly before `w.Write`. Match this style when adding endpoints: write a `produce*` function and register it in `refresher.go` (`ttls` + `defaultProducers`).
 - Handler tests must call `cache.flush()` before invoking a `Handle*API` GET, because responses are cached per endpoint for up to their TTL (smart = 60s) and would otherwise leak between tests.
+- Producer seams for tests: `smartctlResolver` (smart.go) and `zpoolResolver` (api.go) are package-level vars over the respective `resolve*Bin` functions; tests swap them (`withSmartctlBin` / `withZpoolBin`) to run the full handler pipelines against stub shell scripts without a real `smartctl`/`zpool` install. `fetchZpool(ctx, bin)` / `fetchSmartScan` / `fetchSmartDevice` take the binary explicitly for the same reason.
+- The dashboard (`embed/index.html`) resolves its four poll URLs **relative** to `document.baseURI` via the `api(name)` helper (`api/zpool`, `api/arc`, `api/sysinfo`, `api/smart`), not root-relative — so the dashboard also works when a reverse proxy serves it under a path prefix or subpath. Keep new fetches on `api(...)`.
+- Environment-dependent paths in tests (real `zpool`/`smartctl`/cpufreq sysfs on the host) must skip themselves with `t.Skip` rather than fail (`TestHandleSmartAPI_SmartctlMissing`, `TestResolveZpoolBin`, `TestReadCPUFreqLimits_MissingSysfs` are the models).
 - The deep-sleep runtime profile (GC off, FreeOSMemory, GOMAXPROCS 1) must never run inside the test binary: tests build their own `idleGate` with injected callbacks. `BootSleep()` is only called from `main`.
 - No third-party dependencies are permitted by design ("Zero Dependencies" is a headline feature in `README.md`). Do not add requires to `go.mod` without explicit maintainer agreement.
 - The README explicitly labels Go code as "human made/reviewed" and HTML/templates/README as "AI assisted". Keep Go changes minimal and idiomatic.
