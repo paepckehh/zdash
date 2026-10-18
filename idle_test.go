@@ -190,6 +190,60 @@ func TestIdleGate_ExitOnIdle(t *testing.T) {
 	}
 }
 
+// A connection accepted while the grace-timer callback (trySleep) is
+// mid-flight must never be lost: the connection is counted atomically
+// before its wake() can take the gate mutex, so trySleep must see it and
+// must not exit (exit-on-idle mode) on top of a live connection, and the
+// blocked wake() must undo the park afterwards.
+func TestIdleGate_ConnectionDuringSleepIsNotLost(t *testing.T) {
+	inSleep := make(chan struct{}, 1)
+	release := make(chan struct{})
+	g := newIdleGate(nil, func() {
+		inSleep <- struct{}{}
+		<-release
+	})
+	g.grace = 10 * time.Millisecond
+	g.exitOnIdle = true
+	exited := make(chan struct{}, 1)
+	g.exit = func() { exited <- struct{}{} }
+
+	// Open and close a connection so the grace timer fires trySleep,
+	// which then parks inside sleepFn holding the gate mutex.
+	g.connState(http.StateNew)
+	g.connState(http.StateClosed)
+	<-inSleep
+
+	// Reconnect accepted while trySleep is mid-flight: its wake() blocks
+	// on g.mu until trySleep returns, but the count is already visible.
+	woken := make(chan struct{})
+	go func() {
+		defer close(woken)
+		g.connState(http.StateNew)
+	}()
+	for i := 0; i < 1000 && g.conns.Load() == 0; i++ {
+		time.Sleep(time.Millisecond)
+	}
+	if g.conns.Load() != 1 {
+		t.Fatal("reconnect was not counted")
+	}
+
+	close(release) // let trySleep finish and evaluate the exit guard
+
+	select {
+	case <-exited:
+		t.Fatal("exited while a live connection was pending wake")
+	case <-woken:
+	case <-time.After(2 * time.Second):
+		t.Fatal("wake did not complete after trySleep released the gate")
+	}
+	if g.conns.Load() != 1 {
+		t.Fatalf("conns = %d, want 1", g.conns.Load())
+	}
+	if g.sleeping {
+		t.Fatal("gate still sleeping with live connections")
+	}
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

@@ -121,6 +121,12 @@ func ExitOnIdle() {
 // connState maps http.ConnState transitions onto the connection counter.
 // A connection is counted from StateNew (accept) through StateActive /
 // StateIdle until it is Closed or Hijacked.
+//
+// Counting stays atomic and lock-free on purpose: the counter must be
+// visible to trySleep even while a newly accepted connection is still
+// blocked on the gate mutex in wake(), otherwise a live connection could
+// be missed and the process parked (or exited in exit-on-idle mode)
+// underneath it.
 func (g *idleGate) connState(state http.ConnState) {
 	switch state {
 	case http.StateNew:
@@ -172,7 +178,11 @@ func (g *idleGate) trySleep() {
 	g.sleeping = true
 	log.Printf("💤 no active session — deep sleep")
 	g.sleepFn()
-	if g.exitOnIdle {
+	// sleepFn (notably FreeOSMemory) can take a while, and a fresh
+	// connection may have been accepted and counted while we ran: its
+	// wake() is blocked on g.mu right now and would undo the park, so
+	// never exit on top of a live connection.
+	if g.exitOnIdle && g.conns.Load() == 0 {
 		log.Printf("💤 idle — exiting (socket activation restarts on demand)")
 		g.exit()
 	}
