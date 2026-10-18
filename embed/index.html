@@ -879,10 +879,22 @@ body::after {
      rebuilds. */
   function setTxt(el, s) { if (el && el.textContent !== s) el.textContent = s; }
   function setW(el, w) { if (el) el.style.width = Math.max(0, Math.min(w, 100)).toFixed(1) + '%'; }
+  /* Status and tone classes are swapped in place, never via a full
+     className write: the js-* marker classes of a mounted node must
+     survive every poll, or the next querySelector('.js-…') misses and
+     the card render crashes (see the fragEl bug). */
   function setBadge(el, cls, txt) {
     if (!el) return;
     if (txt != null && el.textContent !== txt) el.textContent = txt;
-    if (!el.classList.contains(cls)) el.className = 'badge ' + cls;
+    for (const c of [...el.classList]) {
+      if (c.startsWith('b-')) el.classList.remove(c);
+    }
+    el.classList.add(cls);
+  }
+  const TONES = ['mint', 'amber', 'crimson', 'cyan', 'violet'];
+  function setTone(el, tone) {
+    if (!el) return;
+    for (const t of TONES) el.classList.toggle(t, t === tone);
   }
   const keyedEls = new Map();
   function mountKeyed(container, key, html) {
@@ -1447,11 +1459,11 @@ body::after {
     card.querySelector('.js-capbar').style.background = capGrad;
     const fragEl = card.querySelector('.js-frag');
     setTxt(fragEl, frag);
-    fragEl.className = 'tile-value ' + ((parseFloat(frag) || 0) > 50 ? 'amber' : 'mint');
+    setTone(fragEl, (parseFloat(frag) || 0) > 50 ? 'amber' : 'mint');
     setTxt(card.querySelector('.js-dedup'), dedup);
     const healthEl = card.querySelector('.js-health');
     setTxt(healthEl, props.health?.value || pool.state || '—');
-    healthEl.className = 'tile-value ' + ((pool.state || '').toUpperCase() === 'ONLINE' ? 'mint' : 'amber');
+    setTone(healthEl, (pool.state || '').toUpperCase() === 'ONLINE' ? 'mint' : 'amber');
     card.querySelector('.js-vdevs').innerHTML = renderVdevs(pool.vdevs);
   }
 
@@ -1597,7 +1609,7 @@ body::after {
     const demHits = arc.demand_data_hits + arc.demand_metadata_hits;
     const preHits = arc.prefetch_data_hits + arc.prefetch_metadata_hits;
     const demMisses = arc.demand_data_misses + arc.demand_metadata_misses;
-    const preMisses = arc.prefetch_data_misses + arc.prefetch_data_misses;
+    const preMisses = arc.prefetch_data_misses + arc.prefetch_metadata_misses;
     const demPct = (demHits + demMisses) ? demHits / (demHits + demMisses) * 100 : 0;
     const prePct = (preHits + preMisses) ? preHits / (preHits + preMisses) * 100 : 0;
 
