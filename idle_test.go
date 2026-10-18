@@ -1,6 +1,7 @@
 package zdash
 
 import (
+	"net"
 	"net/http"
 	"sync"
 	"testing"
@@ -71,8 +72,8 @@ func TestIdleGate_WakeOnFirstConnection(t *testing.T) {
 	rec.waitEvent(t, 1)
 
 	// A second connection must not fire a second wake.
-	g.connState(http.StateNew)
-	g.connState(http.StateNew)
+	g.connState(nil, http.StateNew)
+	g.connState(nil, http.StateNew)
 	rec.waitEvent(t, 2)
 	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake"}) {
 		t.Fatalf("events = %v, want [sleep wake]", got)
@@ -87,9 +88,9 @@ func TestIdleGate_SleepAfterGrace(t *testing.T) {
 	g.enterSleep()
 	rec.waitEvent(t, 1)
 
-	g.connState(http.StateNew)
+	g.connState(nil, http.StateNew)
 	rec.waitEvent(t, 2)
-	g.connState(http.StateClosed)
+	g.connState(nil, http.StateClosed)
 	// Still inside the grace window: no sleep yet.
 	time.Sleep(5 * time.Millisecond)
 	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake"}) {
@@ -109,17 +110,17 @@ func TestIdleGate_ReconnectWithinGraceCancelsSleep(t *testing.T) {
 	g.enterSleep()
 	rec.waitEvent(t, 1)
 
-	g.connState(http.StateNew)
+	g.connState(nil, http.StateNew)
 	rec.waitEvent(t, 2)
-	g.connState(http.StateClosed)
+	g.connState(nil, http.StateClosed)
 	// Reconnect before the grace timer fires.
-	g.connState(http.StateNew)
+	g.connState(nil, http.StateNew)
 	time.Sleep(80 * time.Millisecond)
 	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake"}) {
 		t.Fatalf("events = %v, want [sleep wake] (reconnect must cancel sleep)", got)
 	}
 	// Closing again re-arms the timer and then sleeps.
-	g.connState(http.StateClosed)
+	g.connState(nil, http.StateClosed)
 	rec.waitEvent(t, 3)
 	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake", "sleep"}) {
 		t.Fatalf("events = %v, want [sleep wake sleep]", got)
@@ -132,9 +133,9 @@ func TestIdleGate_WakeSleepCycle(t *testing.T) {
 
 	n := 1 // the boot sleep
 	for range 3 {
-		g.connState(http.StateNew)
+		g.connState(nil, http.StateNew)
 		rec.waitEvent(t, n+1) // wake
-		g.connState(http.StateClosed)
+		g.connState(nil, http.StateClosed)
 		rec.waitEvent(t, n+2) // sleep after grace
 		n += 2
 	}
@@ -149,9 +150,9 @@ func TestIdleGate_HijackedConnectionCounts(t *testing.T) {
 	g.enterSleep()
 	rec.waitEvent(t, 1)
 
-	g.connState(http.StateNew)
+	g.connState(nil, http.StateNew)
 	rec.waitEvent(t, 2)
-	g.connState(http.StateHijacked)
+	g.connState(nil, http.StateHijacked)
 	rec.waitEvent(t, 3)
 	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake", "sleep"}) {
 		t.Fatalf("events = %v, want [sleep wake sleep]", got)
@@ -175,9 +176,9 @@ func TestIdleGate_ExitOnIdle(t *testing.T) {
 	default:
 	}
 
-	g.connState(http.StateNew)
+	g.connState(nil, http.StateNew)
 	rec.waitEvent(t, 2)
-	g.connState(http.StateClosed)
+	g.connState(nil, http.StateClosed)
 	// Deep sleep first, then the exit.
 	rec.waitEvent(t, 3)
 	select {
@@ -209,8 +210,8 @@ func TestIdleGate_ConnectionDuringSleepIsNotLost(t *testing.T) {
 
 	// Open and close a connection so the grace timer fires trySleep,
 	// which then parks inside sleepFn holding the gate mutex.
-	g.connState(http.StateNew)
-	g.connState(http.StateClosed)
+	g.connState(nil, http.StateNew)
+	g.connState(nil, http.StateClosed)
 	<-inSleep
 
 	// Reconnect accepted while trySleep is mid-flight: its wake() blocks
@@ -218,7 +219,7 @@ func TestIdleGate_ConnectionDuringSleepIsNotLost(t *testing.T) {
 	woken := make(chan struct{})
 	go func() {
 		defer close(woken)
-		g.connState(http.StateNew)
+		g.connState(nil, http.StateNew)
 	}()
 	for i := 0; i < 1000 && g.conns.Load() == 0; i++ {
 		time.Sleep(time.Millisecond)
@@ -241,6 +242,47 @@ func TestIdleGate_ConnectionDuringSleepIsNotLost(t *testing.T) {
 	}
 	if g.sleeping {
 		t.Fatal("gate still sleeping with live connections")
+	}
+}
+
+// A session that stays connected past the session cap must be force-closed
+// so the gate can park (and exit under exit-on-idle, letting socket
+// activation re-arm) even when a client would otherwise hold its keep-alive
+// connection open forever.
+func TestIdleGate_MaxSessionForceClose(t *testing.T) {
+	g, rec := newTestGate(t)
+	g.maxSession = 30 * time.Millisecond
+	g.exitOnIdle = true
+	exited := make(chan struct{}, 1)
+	g.exit = func() { exited <- struct{}{} }
+	g.enterSleep()
+	rec.waitEvent(t, 1)
+
+	for range 2 {
+		c, _ := net.Pipe()
+		// Stand in for the http.Server: report StateClosed once the
+		// force-close lands on the connection.
+		go func(c net.Conn) {
+			var b [1]byte
+			c.SetReadDeadline(time.Now().Add(2 * time.Second))
+			if _, err := c.Read(b[:]); err != nil {
+				g.connState(c, http.StateClosed)
+			}
+		}(c)
+		g.connState(c, http.StateNew)
+	}
+	rec.waitEvent(t, 2) // wake
+
+	// Session exceeds the cap: both connections are closed, the counter
+	// drops to zero, the gate parks, and exit-on-idle fires.
+	rec.waitEvent(t, 3) // sleep after grace
+	select {
+	case <-exited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("exit did not fire after forced session end")
+	}
+	if g.conns.Load() != 0 {
+		t.Fatalf("conns = %d, want 0 after forced close", g.conns.Load())
 	}
 }
 

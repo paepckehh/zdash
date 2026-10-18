@@ -19,6 +19,13 @@ import (
 // and out of sleep mode needlessly.
 const idleGrace = 3 * time.Second
 
+// maxSession caps how long one dashboard session may stay continuously
+// connected. When the cap is reached every live connection is force-closed
+// so the process can fall back into deep sleep (or exit under EXIT_ON_IDLE
+// and let socket activation re-arm); clients transparently reconnect on
+// their next poll, opening a fresh session.
+const maxSession = 4 * time.Minute
+
 // idleGate tracks live HTTP connections (via the http.Server.ConnState
 // hook) and drives the whole process between two modes:
 //
@@ -32,6 +39,9 @@ const idleGrace = 3 * time.Second
 type idleGate struct {
 	mu         sync.Mutex
 	conns      atomic.Int64
+	liveConns  map[net.Conn]struct{}
+	sess       *time.Timer
+	maxSession time.Duration
 	sleeping   bool
 	timer      *time.Timer
 	awakeProcs int
@@ -52,6 +62,8 @@ func newIdleGate(wakeFn, sleepFn func()) *idleGate {
 		awakeProcs: runtime.GOMAXPROCS(0),
 		awakeGC:    envGOGC(),
 		grace:      idleGrace,
+		liveConns:  make(map[net.Conn]struct{}),
+		maxSession: maxSession,
 	}
 	if wakeFn == nil {
 		wakeFn = func() { runtimeWake(g.awakeProcs, g.awakeGC) }
@@ -99,7 +111,7 @@ func runtimeSleep() {
 
 // IdleConnState is the http.Server.ConnState hook that tracks sessions.
 // Wire it into http.Server.ConnState to get session-aware deep sleep.
-func IdleConnState(_ net.Conn, state http.ConnState) { sessions.connState(state) }
+func IdleConnState(c net.Conn, state http.ConnState) { sessions.connState(c, state) }
 
 // BootSleep puts the process into deep sleep before the listener accepts,
 // so a freshly started zdash binds its socket without touching zpool,
@@ -127,16 +139,24 @@ func ExitOnIdle() {
 // blocked on the gate mutex in wake(), otherwise a live connection could
 // be missed and the process parked (or exited in exit-on-idle mode)
 // underneath it.
-func (g *idleGate) connState(state http.ConnState) {
+func (g *idleGate) connState(c net.Conn, state http.ConnState) {
 	switch state {
 	case http.StateNew:
+		// Count first, map second: the counter must be visible to
+		// trySleep even while this call is blocked on g.mu below.
 		if g.conns.Add(1) == 1 {
 			g.wake()
 		}
+		g.mu.Lock()
+		g.liveConns[c] = struct{}{}
+		g.mu.Unlock()
 	case http.StateClosed, http.StateHijacked:
 		if g.conns.Add(-1) == 0 {
 			g.scheduleSleep()
 		}
+		g.mu.Lock()
+		delete(g.liveConns, c)
+		g.mu.Unlock()
 	}
 }
 
@@ -153,6 +173,10 @@ func (g *idleGate) wake() {
 	}
 	g.sleeping = false
 	log.Printf("☀️  session opened — awake")
+	// Arm the session cap: whatever keeps its connection alive (proxies,
+	// forgetful clients) gets disconnected after maxSession so the process
+	// can park and socket activation can re-arm.
+	g.sess = time.AfterFunc(g.maxSession, g.endSession)
 	g.wakeFn()
 }
 
@@ -172,6 +196,10 @@ func (g *idleGate) trySleep() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.timer = nil
+	if g.sess != nil {
+		g.sess.Stop()
+		g.sess = nil
+	}
 	if g.sleeping || g.conns.Load() != 0 {
 		return
 	}
@@ -197,11 +225,40 @@ func (g *idleGate) enterSleep() {
 		g.timer.Stop()
 		g.timer = nil
 	}
+	if g.sess != nil {
+		g.sess.Stop()
+		g.sess = nil
+	}
 	if g.sleeping {
 		return
 	}
 	g.sleeping = true
 	g.sleepFn()
+}
+
+// endSession is the maxSession timer callback: force-close every live
+// connection so the gate falls back into deep sleep (and, under
+// EXIT_ON_IDLE, exits so socket activation takes over). The server
+// reports each closed connection via the ConnState hook, which drives the
+// counter to zero and arms the regular idle grace.
+func (g *idleGate) endSession() {
+	g.mu.Lock()
+	g.sess = nil
+	conns := make([]net.Conn, 0, len(g.liveConns))
+	for c := range g.liveConns {
+		conns = append(conns, c)
+	}
+	clear(g.liveConns)
+	g.mu.Unlock()
+	if len(conns) == 0 {
+		return
+	}
+	log.Printf("⏳  session reached %s cap — closing %d connection(s) to park", g.maxSession, len(conns))
+	for _, c := range conns {
+		if c != nil {
+			c.Close()
+		}
+	}
 }
 
 // sessions is the process-wide idle gate, wired into the HTTP server via
