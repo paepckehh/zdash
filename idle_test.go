@@ -286,6 +286,56 @@ func TestIdleGate_MaxSessionForceClose(t *testing.T) {
 	}
 }
 
+// A client that reconnects while the previous session window is being
+// force-closed (or immediately after) must keep the process awake and
+// serving — but never awake without a session cap: a fresh maxSession
+// window is armed for it, so the 4-minute ceiling still holds.
+func TestIdleGate_ReconnectAfterSessionEndStaysCapped(t *testing.T) {
+	g, rec := newTestGate(t)
+	g.maxSession = 30 * time.Millisecond
+	g.enterSleep()
+	rec.waitEvent(t, 1)
+
+	// reportClosed runs a goroutine per pipe that reports StateClosed
+	// once the gate's force-close lands on the connection.
+	reportClosed := func(c net.Conn, closed chan<- struct{}) {
+		go func(c net.Conn) {
+			var b [1]byte
+			c.SetReadDeadline(time.Now().Add(2 * time.Second))
+			if _, err := c.Read(b[:]); err != nil {
+				g.connState(c, http.StateClosed)
+				closed <- struct{}{}
+			}
+		}(c)
+	}
+	closed1 := make(chan struct{}, 1)
+	c1, _ := net.Pipe()
+	reportClosed(c1, closed1)
+	g.connState(c1, http.StateNew)
+	rec.waitEvent(t, 2) // wake
+
+	// Window one expires and force-closes c1. Reconnect immediately —
+	// before the idle grace can park the gate — the way an actively
+	// polling dashboard client does.
+	<-closed1
+	closed2 := make(chan struct{}, 1)
+	c2, _ := net.Pipe()
+	reportClosed(c2, closed2)
+	g.connState(c2, http.StateNew)
+
+	// The reconnect keeps the session online (no sleep during its
+	// window) but must be capped by a fresh session window: c2 gets
+	// force-closed too, the counter reaches zero, and the gate parks.
+	rec.waitEvent(t, 3) // sleep after grace
+	if got := rec.snapshot(); !equalStrings(got, []string{"sleep", "wake", "sleep"}) {
+		t.Fatalf("events = %v, want [sleep wake sleep]", got)
+	}
+	if g.conns.Load() != 0 {
+		t.Fatalf("conns = %d, want 0 after second forced close", g.conns.Load())
+	}
+	<-closed2
+}
+
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

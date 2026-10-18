@@ -160,6 +160,18 @@ func (g *idleGate) connState(c net.Conn, state http.ConnState) {
 	}
 }
 
+// armSessionLocked arms the session cap when the gate is awake but no
+// window is pending. Called with g.mu held. An already-armed timer is
+// left untouched so a continuously connected session can never extend
+// past maxSession, while any session that is still exchanging data gets
+// its own full window: a client that reconnects after (or during) a
+// forced session end must never leave the process awake and uncapped.
+func (g *idleGate) armSessionLocked() {
+	if g.sess == nil && !g.sleeping {
+		g.sess = time.AfterFunc(g.maxSession, g.endSession)
+	}
+}
+
 // wake leaves deep-sleep mode and arms the background refresher.
 func (g *idleGate) wake() {
 	g.mu.Lock()
@@ -169,6 +181,10 @@ func (g *idleGate) wake() {
 		g.timer = nil
 	}
 	if !g.sleeping {
+		// Already awake (a reconnect inside the idle grace, or right
+		// after a forced session end): re-open a session window so the
+		// active endpoint stays served, but stays capped.
+		g.armSessionLocked()
 		return
 	}
 	g.sleeping = false
@@ -176,7 +192,7 @@ func (g *idleGate) wake() {
 	// Arm the session cap: whatever keeps its connection alive (proxies,
 	// forgetful clients) gets disconnected after maxSession so the process
 	// can park and socket activation can re-arm.
-	g.sess = time.AfterFunc(g.maxSession, g.endSession)
+	g.armSessionLocked()
 	g.wakeFn()
 }
 
@@ -259,6 +275,14 @@ func (g *idleGate) endSession() {
 			c.Close()
 		}
 	}
+	// A fresh connection may have been accepted while the old ones were
+	// being closed (or a client may have reconnected already, without the
+	// counter ever dropping to zero and re-running wake). That endpoint is
+	// active and must stay served — but only within a new capped window,
+	// never awake without a session cap.
+	g.mu.Lock()
+	g.armSessionLocked()
+	g.mu.Unlock()
 }
 
 // sessions is the process-wide idle gate, wired into the HTTP server via
