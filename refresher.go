@@ -251,7 +251,7 @@ func errBody(msg string) []byte {
 // serveRefresh is the shared handler body of every API endpoint: serve the
 // (possibly freshly refreshed) cached JSON for key.
 func serveRefresh(w http.ResponseWriter, r *http.Request, key string) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}

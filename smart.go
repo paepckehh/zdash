@@ -233,13 +233,11 @@ type rawSmartAll struct {
 }
 
 // resolveSmartctlBin picks the smartctl binary to invoke. It prefers the NixOS
-// layout (mirroring resolveZpoolBin) and falls back to a $PATH lookup.
+// layout (mirroring resolveZpoolBin) and falls back to a $PATH lookup by the
+// exec package.
 func resolveSmartctlBin() string {
 	if _, err := os.Stat(nixSmartctl); err == nil {
 		return nixSmartctl
-	}
-	if path, err := exec.LookPath("smartctl"); err == nil {
-		return path
 	}
 	return "smartctl"
 }

@@ -299,7 +299,9 @@ func init() {
 		cache.setActive(true)
 	}
 	sessions.sleepFn = func() {
-		runtimeSleepFn()
+		// Drop the cache first: runtimeSleep's FreeOSMemory can only
+		// return those pages to the OS once the refresher released them.
 		cache.setActive(false)
+		runtimeSleepFn()
 	}
 }

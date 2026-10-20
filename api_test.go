@@ -133,7 +133,7 @@ func TestHandleIndex(t *testing.T) {
 		t.Errorf("Content-Type = %q, want text/html*", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Pool &amp; ARC Dashboard") && !strings.Contains(body, "Pool & ARC Dashboard") {
+	if !strings.Contains(body, "System &amp; ZFS Dashboard") && !strings.Contains(body, "System & ZFS Dashboard") {
 		t.Errorf("body missing title marker; got %d bytes", len(body))
 	}
 	if !strings.Contains(body, "api/zpool") && !strings.Contains(body, "api/' + name") {

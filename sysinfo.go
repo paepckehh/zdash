@@ -46,9 +46,9 @@ const (
 // bytes; the frontend formats them.
 type SysInfo struct {
 	Hostname string `json:"hostname"`
-	// FQDN is the fully-qualified domain name read from
-	// /proc/sys/kernel/domainname ("none" on hosts without a domain). It
-	// lets the dashboard show host.example.com alongside the short hostname.
+	// FQDN is the fully-qualified host name (hostname + kernel domain),
+	// or the bare hostname when the host has no domain. The dashboard
+	// shows host.example.com alongside the short hostname.
 	FQDN      string `json:"fqdn"`
 	OS        string `json:"os"`
 	OSID      string `json:"os_id"`
@@ -135,9 +135,7 @@ func fetchSysInfo(ctx context.Context) (*SysInfo, error) {
 		s.Hostname = h
 	}
 	if b, err := os.ReadFile("/proc/sys/kernel/domainname"); err == nil {
-		if d := strings.TrimSpace(string(b)); d != "" && d != "(none)" && d != "none" {
-			s.FQDN = d
-		}
+		s.FQDN = fqdn(s.Hostname, string(b))
 	}
 
 	if b, err := os.ReadFile(procOSRelease); err == nil {
@@ -411,6 +409,20 @@ func parseCPUInfo(raw []byte) (model, vendor string, logical, physical int, freq
 		}
 	}
 	return model, vendor, logical, physical, freqMHz
+}
+
+// fqdn joins a short hostname and the kernel domain name, tolerating hosts
+// that already report a fully-qualified name or no domain at all.
+func fqdn(host, domain string) string {
+	host = strings.TrimSuffix(strings.TrimSpace(host), ".")
+	domain = strings.TrimSuffix(strings.TrimSpace(domain), ".")
+	if domain == "" || domain == "(none)" || domain == "none" {
+		return host
+	}
+	if host == "" || host == domain || strings.HasSuffix(host, "."+domain) {
+		return host
+	}
+	return host + "." + domain
 }
 
 // parseUptime returns the idle-agnostic uptime in seconds from /proc/uptime.

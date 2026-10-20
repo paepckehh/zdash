@@ -16,7 +16,7 @@ info:
 	echo "$(PROJECT)"
 
 run:    build
-	BIND_ADDR=0.0.0.0:8080 ./$(PROJECT)
+	BIND_ADDR=127.0.0.1:8080 ./$(PROJECT)
 
 build:
 	touch $(PROJECT) && rm $(PROJECT)
@@ -47,8 +47,8 @@ prep-git:
 	git remote -v
 
 prep-git-ssh:
-	git config user.name $(PROJECT_MGR_EMAIL)
-	git config user.email $(PROJECT_MGR_NAME)
+	git config user.name "$(PROJECT_MGR_NAME)"
+	git config user.email "$(PROJECT_MGR_EMAIL)"
 	git remote set-url origin $(PROJECT_URL_SSH)
 	git remote -v
 

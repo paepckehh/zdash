@@ -1,12 +1,11 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark light">
-<title>zDash — ZFS Pool &amp; ARC Dashboard</title>
+<title>zDash — System &amp; ZFS Dashboard</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700;800&display=swap');
 
 /* ════════════════════════════════════════════════════════════
    THEME: LIGHT — frosted glass over security-blue
@@ -359,11 +358,11 @@ body::after {
 /* grid + cards (12-column layout, cards default to half width) */
 .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; perspective: 1400px; }
 .grid > .card { grid-column: span 6; }
-.col-4 { grid-column: span 4; }
-.col-5 { grid-column: span 5; }
-.col-6 { grid-column: span 6; }
-.col-7 { grid-column: span 7; }
-.col-12 { grid-column: 1 / -1; }
+.grid > .col-4 { grid-column: span 4; }
+.grid > .col-5 { grid-column: span 5; }
+.grid > .col-6 { grid-column: span 6; }
+.grid > .col-7 { grid-column: span 7; }
+.grid > .col-12 { grid-column: 1 / -1; }
 .card {
   background: var(--glass); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(150%);
@@ -407,7 +406,7 @@ body::after {
 .tile-value { font-size: 1.02rem; font-weight: 700; margin-top: 5px; color: var(--text); font-variant-numeric: tabular-nums; word-break: break-word; }
 .tile-value.cyan { color: var(--cyan); }
 .tile-value.mint { color: var(--mint); }
-.tile-value.amber { color: var(--phosphor-bright); }
+.tile-value.amber { color: var(--amber-warn); }
 .tile-value.crimson { color: var(--crimson); }
 .tile-value.violet { color: var(--violet); }
 
@@ -496,7 +495,14 @@ body::after {
 
 /* SMART attribute table */
 .table-scroll { overflow-x: auto; margin: 6px 0 2px; }
-.smart-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.74rem; }
+.smart-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.74rem; }
+.smart-table th:nth-child(1) { width: 7%; }
+.smart-table th:nth-child(2) { width: 24%; }
+.smart-table th:nth-child(3),
+.smart-table th:nth-child(4),
+.smart-table th:nth-child(5) { width: 8%; }
+.smart-table th:nth-child(6) { width: 29%; }
+.smart-table th:nth-child(7) { width: 16%; }
 .smart-table th {
   text-align: left; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.12em;
   color: var(--muted); font-weight: 700; padding: 8px 10px;
@@ -504,7 +510,7 @@ body::after {
 }
 .smart-table td {
   padding: 7px 10px; border-bottom: 1px solid var(--line);
-  color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap;
+  color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
 .smart-table tr:last-child td { border-bottom: none; }
 .smart-table tbody tr:hover td { background: var(--tile-hover); }
@@ -725,7 +731,6 @@ body::after {
     if (icon) icon.innerHTML = theme === 'dark' ? ICON_SUN : ICON_MOON;
     if (label) label.textContent = theme === 'dark' ? 'light' : 'dark';
   }
-  function isLight() { return root.getAttribute('data-theme') !== 'dark'; }
   (function initTheme() {
     let saved = null;
     try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
@@ -739,62 +744,52 @@ body::after {
         const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
         applyTheme(next);
         try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+        if (next === 'dark') startMatrixRain();
         if (Date.now() - lastRefresh > 800) refreshAll();
       });
     }
+    if (root.getAttribute('data-theme') === 'dark') startMatrixRain();
   });
 
-  /* ── matrix rain (dark theme ambient, subtle) ────────────── */
+  /* ── matrix rain (dark theme ambient, throttled) ─────────── */
   const matrixCanvas = document.getElementById('matrix-rain');
+  const MATRIX_FONT = 14;
+  const MATRIX_FRAME_MS = 80;
+  const MATRIX_GLYPHS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEFｱｲｳｴｵｶｷｸ<>/\\|*=$#@';
   let matrixRAF = null;
-  function startMatrixRain() {
+  let matrixDrops = [];
+  function matrixResize() {
     if (!matrixCanvas) return;
+    matrixCanvas.width = window.innerWidth;
+    matrixCanvas.height = window.innerHeight;
+    const cols = Math.max(1, Math.floor(matrixCanvas.width / MATRIX_FONT));
+    matrixDrops = Array.from({ length: cols }, () => Math.random() * -matrixCanvas.height);
+  }
+  function startMatrixRain() {
+    if (!matrixCanvas || matrixRAF) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const ctx = matrixCanvas.getContext('2d');
-    const resize = () => {
-      matrixCanvas.width = window.innerWidth;
-      matrixCanvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener('resize', resize);
-    const glyphs = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEFｱｲｳｴｵｶｷｸ<>/\\|*=$#@';
-    const fontSize = 14;
-    let columns = Math.floor(matrixCanvas.width / fontSize);
-    let drops = new Array(columns).fill(1).map(() => Math.random() * -matrixCanvas.height);
-    function draw() {
+    matrixResize();
+    let last = 0;
+    const loop = (now) => {
+      if (root.getAttribute('data-theme') !== 'dark') { matrixRAF = null; return; }
+      matrixRAF = requestAnimationFrame(loop);
+      if (now - last < MATRIX_FRAME_MS) return;
+      last = now;
       ctx.fillStyle = 'rgba(0,0,0,0.06)';
       ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
       ctx.fillStyle = '#38bdf8';
-      ctx.font = fontSize + 'px monospace';
-      for (let i = 0; i < drops.length; i++) {
-        const ch = glyphs[Math.floor(Math.random() * glyphs.length)];
-        ctx.fillText(ch, i * fontSize, drops[i]);
-        drops[i] += fontSize;
-        if (drops[i] > matrixCanvas.height && Math.random() > 0.975) drops[i] = 0;
+      ctx.font = MATRIX_FONT + 'px monospace';
+      for (let i = 0; i < matrixDrops.length; i++) {
+        const ch = MATRIX_GLYPHS[Math.floor(Math.random() * MATRIX_GLYPHS.length)];
+        ctx.fillText(ch, i * MATRIX_FONT, matrixDrops[i]);
+        matrixDrops[i] += MATRIX_FONT;
+        if (matrixDrops[i] > matrixCanvas.height && Math.random() > 0.975) matrixDrops[i] = 0;
       }
-    }
-    function loop() {
-      if (root.getAttribute('data-theme') !== 'dark') { matrixRAF = null; return; }
-      draw();
-      matrixRAF = requestAnimationFrame(loop);
-    }
-    if (matrixRAF) cancelAnimationFrame(matrixRAF);
-    loop();
+    };
+    matrixRAF = requestAnimationFrame(loop);
   }
-  document.addEventListener('DOMContentLoaded', () => {
-    if (root.getAttribute('data-theme') === 'dark' &&
-      !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      startMatrixRain();
-    }
-    const btn = document.getElementById('theme-toggle');
-    if (btn) {
-      btn.addEventListener('click', () => {
-        if (root.getAttribute('data-theme') === 'dark' && !matrixRAF &&
-          !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          startMatrixRain();
-        }
-      });
-    }
-  });
+  if (matrixCanvas) window.addEventListener('resize', matrixResize);
 
   const REFRESH_MS = 5000;
   let timer = null;
@@ -865,6 +860,19 @@ body::after {
   function api(name) {
     try { return new URL('api/' + name, document.baseURI).href; }
     catch { return 'api/' + name; }
+  }
+
+  /* fetch + decode JSON with a hard deadline so a hung endpoint cannot
+     wedge the poll loop; JSON error bodies surface as readable messages. */
+  async function getJSON(name) {
+    const signal = typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(35000) : undefined;
+    const res = await fetch(api(name), { signal });
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* non-JSON body */ }
+    if (!res.ok) throw new Error((data && data.error) || 'HTTP ' + res.status);
+    if (data && data.error) throw new Error(data.error);
+    return data;
   }
 
   /* error state markup: alert icon + message + detail */
@@ -969,14 +977,16 @@ body::after {
   function updateSparkline(sparkEl, data) {
     const svg = sparkEl && sparkEl.querySelector('svg');
     if (!svg || !data.length) return;
-    const max = Math.max(...data, 1);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const pad = (max - min) * 0.2 || 1;
+    const lo = min - pad;
+    const range = (max + pad) - lo || 1;
     const h = SPARK_H;
     const step = data.length > 1 ? 100 / (data.length - 1) : 100;
     const pts = data.map((v, i) => {
       const x = i * step;
-      const y = h - ((v - min) / range) * (h - 8) - 4;
+      const y = h - ((v - lo) / range) * (h - 8) - 4;
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     }).join(' ');
     svg.querySelector('.spark-area').setAttribute('points', `0,${h} ${pts} 100,${h}`);
@@ -1015,6 +1025,23 @@ body::after {
   });
 
   /* ── KPI summary strip (per-tab, driven by cached latest data) ── */
+  const KPI_SLOTS = 5;
+  const kpiSlots = [];
+  function ensureKPISlots(el) {
+    if (kpiSlots.length === KPI_SLOTS && kpiSlots[0].isConnected) return;
+    el.innerHTML = '';
+    kpiSlots.length = 0;
+    for (let i = 0; i < KPI_SLOTS; i++) {
+      el.insertAdjacentHTML('beforeend', `
+        <div class="kpi" data-accent="pool">
+          <div class="kpi-head"><span class="kpi-icon js-kicon"></span><span class="kpi-label js-klabel"></span></div>
+          <div class="kpi-value js-kvalue"></div>
+          <div class="kpi-sub js-ksub"></div>
+          <div class="kpi-bar js-kbar" style="width:0%"></div>
+        </div>`);
+      kpiSlots.push(el.lastElementChild);
+    }
+  }
   function renderKPIs() {
     const el = document.getElementById('kpis');
     if (!el) return;
@@ -1040,7 +1067,7 @@ body::after {
       });
     }
 
-    if (group === 'pools' && pools && pools.pools) {
+    if (group === 'pools' && pools && pools.pools && Object.keys(pools.pools).length) {
       const entries = Object.entries(pools.pools);
       let online = 0, capSum = 0, capN = 0, worstFrag = -1, worstName = '—', degraded = 0;
       for (const [name, p] of entries) {
@@ -1114,13 +1141,29 @@ body::after {
       });
     }
 
-    el.innerHTML = kpis.map(k => `
-      <div class="kpi" data-accent="${k.accent}">
-        <div class="kpi-head"><span class="kpi-icon">${iconSVG(k.icon)}</span><span class="kpi-label">${escapeHTML(k.label)}</span></div>
-        <div class="kpi-value${k.txt ? ' txt' : ''}">${escapeHTML(String(k.value))}</div>
-        <div class="kpi-sub">${escapeHTML(String(k.sub))}</div>
-        ${k.bar != null ? `<div class="kpi-bar" style="width:${Math.min(k.bar, 100).toFixed(1)}%"></div>` : ''}
-      </div>`).join('');
+    ensureKPISlots(el);
+    for (let i = 0; i < KPI_SLOTS; i++) {
+      const slot = kpiSlots[i], k = kpis[i];
+      slot.hidden = !k;
+      if (!k) continue;
+      if (slot.dataset.accent !== (k.accent || 'pool')) {
+        slot.dataset.accent = k.accent || 'pool';
+      }
+      const valueEl = slot.querySelector('.js-kvalue');
+      const isTxt = !!k.txt;
+      if (valueEl.classList.contains('txt') !== isTxt) valueEl.classList.toggle('txt', isTxt);
+      const iconEl = slot.querySelector('.js-kicon');
+      if (iconEl.dataset.icon !== k.icon) {
+        iconEl.innerHTML = iconSVG(k.icon);
+        iconEl.dataset.icon = k.icon;
+      }
+      setTxt(slot.querySelector('.js-klabel'), k.label);
+      setTxt(valueEl, String(k.value));
+      setTxt(slot.querySelector('.js-ksub'), String(k.sub));
+      const bar = slot.querySelector('.js-kbar');
+      bar.hidden = k.bar == null;
+      if (k.bar != null) setW(bar, Number(k.bar) || 0);
+    }
   }
 
   /* ── System overview (fastfetch-style) ────────────────────── */
@@ -1187,7 +1230,8 @@ body::after {
     const memUsedPct = s.memory_total_bytes
       ? (s.memory_used_bytes / s.memory_total_bytes * 100) : 0;
     const memCachedPct = s.memory_total_bytes
-      ? (s.memory_cached_bytes / s.memory_total_bytes * 100) : 0;
+      ? Math.min(s.memory_cached_bytes / s.memory_total_bytes * 100,
+        100 - memUsedPct) : 0;
     const memFreePct = Math.max(100 - memUsedPct - memCachedPct, 0);
     const memColor = memUsedPct > 90 ? C.red : memUsedPct > 75 ? C.amber : C.amberSoft;
     const memBadgeCls = memUsedPct > 90 ? 'b-offline' : memUsedPct > 75 ? 'b-degraded' : 'b-online';
@@ -1355,10 +1399,7 @@ body::after {
 
   async function fetchSysInfo() {
     try {
-      const res = await fetch(api('sysinfo'));
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await getJSON('sysinfo');
       state.latest.sys = data;
       applyCaps(data);
       renderSys(data);
@@ -1479,10 +1520,7 @@ body::after {
 
   async function fetchPools() {
     try {
-      const res = await fetch(api('zpool'));
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await getJSON('zpool');
       state.latest.pools = data;
       renderPools(data);
       return data;
@@ -1735,7 +1773,7 @@ body::after {
 
     /* Demand vs Prefetch card */
     const dem = mountKeyed(grid, 'arc:dem', `
-      <div class="card col-4" data-accent="arc" data-key="arc:dem">
+      <div class="card col-8" data-accent="arc" data-key="arc:dem">
         <div class="card-head"><span class="card-title">Demand vs Prefetch</span></div>
         <div class="tiles tiles-2">
           <div class="tile"><div class="tile-label">Demand Hits</div><div class="tile-value mint js-demh"></div></div>
@@ -1763,7 +1801,7 @@ body::after {
 
     /* Memory breakdown card */
     const mem = mountKeyed(grid, 'arc:mem', `
-      <div class="card col-12" data-accent="arc" data-key="arc:mem">
+      <div class="card col-8" data-accent="arc" data-key="arc:mem">
         <div class="card-head"><span class="card-title">Memory Breakdown</span></div>
         <div class="tiles">
           <div class="tile"><div class="tile-label">Data</div><div class="tile-value cyan js-data"></div></div>
@@ -1837,15 +1875,13 @@ body::after {
 
   async function fetchARC() {
     try {
-      const res = await fetch(api('arc'));
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const data = await getJSON('arc');
       state.latest.arc = data;
       renderARC(data);
       return data;
     } catch (err) {
       state.latest.arc = null;
+      prevHits = prevMisses = null;
       const el = document.getElementById('arc-state');
       document.getElementById('arc-grid').innerHTML = '';
       dropKeyed('arc:');
@@ -1913,8 +1949,8 @@ body::after {
           <div class="bar"><div class="bar-fill" style="width:${sparePct}%;background:linear-gradient(90deg,${C.cyan},${C.green})"></div></div>
         </div>
         <div class="tiles">
-          <div class="tile"><div class="tile-label">Data Read</div><div class="tile-value violet">${fmtNum(n.data_units_read * 512 * 1000)}</div></div>
-          <div class="tile"><div class="tile-label">Data Written</div><div class="tile-value violet">${fmtNum(n.data_units_written * 512 * 1000)}</div></div>
+          <div class="tile"><div class="tile-label">Data Read</div><div class="tile-value violet">${fmtBytes(n.data_units_read * 512000)}</div></div>
+          <div class="tile"><div class="tile-label">Data Written</div><div class="tile-value violet">${fmtBytes(n.data_units_written * 512000)}</div></div>
           <div class="tile"><div class="tile-label">Host Reads</div><div class="tile-value cyan">${fmtNum(n.host_reads)}</div></div>
         </div>
         <div class="tiles">
@@ -2117,9 +2153,7 @@ body::after {
 
   async function fetchSmart() {
     try {
-      const res = await fetch(api('smart'));
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
+      const data = await getJSON('smart');
       state.latest.smart = data;
       applySmartCap(data);
       if (!caps.smart || !data.devices || data.devices.length === 0) {
@@ -2169,21 +2203,30 @@ body::after {
     }
   }
 
+  let refreshing = false;
   async function refreshAll() {
+    if (refreshing) return;
+    refreshing = true;
     lastRefresh = Date.now();
     const fab = document.getElementById('fab');
     fab.classList.add('refreshing');
-    let ok = true;
     try {
+      // Capability probe first: it decides which tabs are worth fetching.
       const sys = await fetchSysInfo();
-      ok = ok && sys !== null;
-      const pools = caps.zfs ? await fetchPools() : null;
-      const arc = caps.arc ? await fetchARC() : null;
-      const smart = await fetchSmart();
-      ok = ok && (!caps.zfs || pools !== null) && (!caps.arc || arc !== null) && smart !== null;
+      const wantPools = caps.zfs, wantArc = caps.arc;
+      const [pools, arc, smart] = await Promise.all([
+        wantPools ? fetchPools() : Promise.resolve(undefined),
+        wantArc ? fetchARC() : Promise.resolve(undefined),
+        fetchSmart()
+      ]);
+      const ok = sys !== null &&
+        (!wantPools || pools !== null) &&
+        (!wantArc || arc !== null) &&
+        smart !== null;
       setLive(ok);
       renderKPIs();
     } finally {
+      refreshing = false;
       setTimeout(() => fab.classList.remove('refreshing'), 500);
     }
   }

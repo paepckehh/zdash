@@ -485,3 +485,22 @@ func TestReadCPUFreqLimits_MissingSysfs(t *testing.T) {
 		t.Errorf("limits = %v/%v, want 0/0 without cpufreq", min, max)
 	}
 }
+
+func TestFQDN(t *testing.T) {
+	cases := []struct {
+		host, domain, want string
+	}{
+		{"zfs-storage", "lan\n", "zfs-storage.lan"},
+		{"zfs-storage", "(none)\n", "zfs-storage"},
+		{"zfs-storage", "none\n", "zfs-storage"},
+		{"zfs-storage", "\n", "zfs-storage"},
+		{"zfs-storage.lan", "lan\n", "zfs-storage.lan"},
+		{"zfs-storage.", "lan\n", "zfs-storage.lan"},
+		{"", "lan\n", ""},
+	}
+	for _, c := range cases {
+		if got := fqdn(c.host, c.domain); got != c.want {
+			t.Errorf("fqdn(%q, %q) = %q, want %q", c.host, c.domain, got, c.want)
+		}
+	}
+}
