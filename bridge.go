@@ -135,7 +135,7 @@ func NewBridge(opts *BridgeOptions) *Bridge {
 // without one, for example from a hand built event loop, fall back to the
 // local derivation. Feed never blocks.
 func (b *Bridge) Feed(ev Event) {
-	if ev.Kind != KindInsert || ev.Card == nil {
+	if ev.Kind != KindInsert || ev.Card == nil || ev.Card.ID == "" {
 		return
 	}
 	reader := ev.ReaderTag

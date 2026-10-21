@@ -423,11 +423,14 @@ func watchLoop(ctx context.Context, cl *pcsc.Client, env watchEnv, lg *slog.Logg
 }
 
 // readerTracking remembers the last known presence of every reader so
-// a daemon restart does not re-report cards that never moved, and the
-// per-session unit identities of the readers (see unitRegistry).
+// a daemon restart does not re-report cards that never moved, the
+// identity of the last reported card per reader (a swapped card across
+// a reconnect must be reported), and the per-session unit identities of
+// the readers (see unitRegistry).
 type readerTracking struct {
 	present  map[string]bool
 	counters map[string]uint32
+	lastID   map[string]string
 	units    *unitRegistry
 }
 
@@ -435,6 +438,7 @@ func newTracking() *readerTracking {
 	return &readerTracking{
 		present:  make(map[string]bool),
 		counters: make(map[string]uint32),
+		lastID:   make(map[string]string),
 		units:    newUnitRegistry(),
 	}
 }
@@ -451,6 +455,17 @@ func pollLoop(ctx context.Context, cl *pcsc.Client, tracking *readerTracking, en
 	// to the wrong physical unit.
 	tracking.counters = make(map[string]uint32)
 	tracking.units = newUnitRegistry()
+	// The counters reset with the connection, so a present reader whose
+	// card was swapped while the daemon was away cannot be detected by
+	// its counter. Probe each reader that was already present exactly
+	// once on this connection and compare the card identity: the same
+	// card stays silent, a different card is a real insertion.
+	recheck := make(map[string]bool, len(tracking.present))
+	for reader, present := range tracking.present {
+		if present {
+			recheck[reader] = true
+		}
+	}
 	for {
 		states, err := cl.States()
 		if err != nil {
@@ -465,9 +480,11 @@ func pollLoop(ctx context.Context, cl *pcsc.Client, tracking *readerTracking, en
 			seen[st.Reader] = true
 			present := st.State&pcsc.ReaderPresent != 0
 			wasPresent := tracking.present[st.Reader]
+			rechecking := recheck[st.Reader]
 			if present {
 				prev, known := tracking.counters[st.Reader]
-				if !wasPresent || (known && prev != st.EventCounter) {
+				if !wasPresent || (known && prev != st.EventCounter) || rechecking {
+					delete(recheck, st.Reader)
 					// The unit attributes and the card UID need an open
 					// card connection, so both are probed now, while the
 					// card is there, over one connection whose exchanges
@@ -490,12 +507,20 @@ func pollLoop(ctx context.Context, cl *pcsc.Client, tracking *readerTracking, en
 							"reader", st.Reader)
 					} else {
 						tag := ReaderTagWithMachine(st.Reader, facts.serial, facts.port, env.machine)
-						if !emit(ctx, ch, Event{Kind: KindInsert, Card: card, Reader: st.Reader, ReaderTag: tag, ReaderSerial: facts.serial, ReaderPort: facts.port}) {
-							return nil
+						if rechecking && tracking.lastID[st.Reader] == card.ID {
+							lg.Debug("card unchanged across the reconnect, not re-reported",
+								"reader", st.Reader, "id", card.ID)
+						} else {
+							if !emit(ctx, ch, Event{Kind: KindInsert, Card: card, Reader: st.Reader, ReaderTag: tag, ReaderSerial: facts.serial, ReaderPort: facts.port}) {
+								return nil
+							}
+							tracking.lastID[st.Reader] = card.ID
 						}
 					}
 				}
 			} else if wasPresent {
+				delete(recheck, st.Reader)
+				delete(tracking.lastID, st.Reader)
 				if !emit(ctx, ch, Event{Kind: KindRemove, Reader: st.Reader}) {
 					return nil
 				}
@@ -514,6 +539,8 @@ func pollLoop(ctx context.Context, cl *pcsc.Client, tracking *readerTracking, en
 			}
 			delete(tracking.present, reader)
 			delete(tracking.counters, reader)
+			delete(tracking.lastID, reader)
+			delete(recheck, reader)
 			tracking.units.forget(reader)
 			if wasPresent {
 				if !emit(ctx, ch, Event{Kind: KindRemove, Reader: reader}) {

@@ -1,354 +1,247 @@
 <div align="center">
 
+<img src="docs/hero.svg" alt="pcscid terminal demo: one card, stable reader tag and btag, signed output" width="100%">
+
 # pcscid
 
-**One short, stable ID for every smart card you tap. Any card, any reader, pure Go.**
+**Tap a card. Get an identity. The same identity tomorrow, on another reader, on another machine, forever.**
 
-[![go version](https://img.shields.io/badge/go-1.27%2B-00ADD8?logo=go)](#)
+[![Go](https://img.shields.io/badge/Go-1.27%2B-00ADD8?logo=go&logoColor=white)](#)
 [![cgo](https://img.shields.io/badge/cgo-none-success)](#)
-[![dependencies](https://img.shields.io/badge/dependencies-0-informational)](#)
-[![platform](https://img.shields.io/badge/platform-linux-1793d1?logo=linux)](#)
-[![license](https://img.shields.io/badge/license-MIT-blue)](#license)
+[![deps](https://img.shields.io/badge/dependencies-zero-blue)](#)
+[![platform](https://img.shields.io/badge/runtime-linux-informational)](#)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-*NFC · MIFARE · RFID · ISO 14443 · eID · YubiKey · contact cards — anything `pcscd` manages.*
+Pure Go. No cgo. No `libpcsclite`. No dependencies. One static binary that speaks the
+`pcscd` IPC protocol directly and turns every card presentation into a short, stable ID.
 
 </div>
 
 ---
 
-Tap a card. Get an ID like `r3v-401-5gmr`. Tap it again tomorrow, on a different machine, through a different reader — **same ID, every time**. Two cards of the same model? **Different IDs.** That's the whole idea, and it's what makes `pcscid` the missing piece between "a card was presented" and "this specific card was presented".
+## What it does
 
-No cgo. No `libpcsclite`. No dependencies. One static binary that talks the `pcscd` daemon wire protocol itself, plus a tiny loopback HTTP bridge so even a browser kiosk page can react to card scans.
+`pcscid` watches every reader the local `pcscd` manages. When a card arrives it reads the
+card's own anti-collision UID, folds it together with the detected card type into a
+**btag**, and derives a **reader tag** from the reader's most portable hardware fact.
 
 ```console
 $ ./pcscid
-#qr-xlrk-i5:r3v-401-5gmr        # reader tag, btag; # marks a btag line
+#qr-xlrk-i5:r3v-401-5gmr
 ```
 
-## Why pcscid
+That line says: *this specific MIFARE Classic 1K, on this specific ACR122U*. Not "a card was
+presented". Not "a MIFARE Classic was presented". The actual card. The actual reader.
 
-Every other smart card tooling path funnels you through C bindings, type detection, or both. `pcscid` takes a different bet:
+## Why it feels like magic
 
-- **Identity, not just type detection.** The ATR alone tells you *a MIFARE Classic 1K was tapped* — every card of that model shares it. `pcscid` reads the card's own anti-collision UID through the PC/SC part 3 `GET DATA` APDU (`FF CA 00 00 00`) and folds it into a short **btag**: `xxx-xxx-xxxx`, digits and lowercase letters, stable across readers, machines, daemon restarts and USB ports.
-- **Pure Go, zero cgo, zero dependencies.** The pcscd IPC protocol ([framed requests](https://pcsclite.apdu.fr/), raw struct responses) is implemented from scratch against pcsc-lite 1.8.24 through 2.4.x, including version down-negotiation for old daemons. One static binary, nothing to link, nothing to break.
-- **Hardware-free tests.** A second, independent in-process implementation of the whole wire protocol acts as a fake `pcscd`. Client and fake agreeing is itself under test — `make test` needs no reader, no card, runs fully parallel.
-- **Privacy cards handled correctly.** ISO/IEC 14443-3 random UIDs (phone NFC emulation, eID, newer DESFire — a *new* UID per activation) are detected and rejected as identifiers. A btag always requires a valid UID: a card whose UID cannot be read produces no output line at all (silently in normal mode, with the full diagnostic trace under `DEBUG=1`), never a type level ATR identity. `Card.Source` (`uid` / `none`) tells you which.
+- **Card identity, not type detection.** The ATR only says *a card model* was tapped.
+  `pcscid` reads the individual UID through the PC/SC part 3 `GET DATA` pseudo-APDU
+  (`FF CA 00 00 00`) and hashes it into `xxx-xxx-xxxx`.
+- **Reader identity with tiers.** Hardware serial when the driver serves one, physical USB
+  port path when it does not, model tag as the always-available fallback. Optional machine
+  MAC scoping for fleets of identical kiosks.
+- **No btag without a real UID.** A failed UID read or an ISO/IEC 14443-3 random UID
+  (phone NFC emulation, eID, newer DESFire) is rejected. No ATR-derived type-level btag
+  is ever invented.
+- **Hardware-free test suite.** An independent in-process fake `pcscd` speaks the whole
+  wire protocol. Client and fake disagreeing is itself a test failure.
+- **Hash stability is a contract.** Every domain, every card type, every reader name edge
+  case and the full 256-bit digest of each domain is pinned by golden tests. A future
+  refactor cannot silently change a stored identifier.
 
-## The btag
-
-```text
-ID = alnum( SHA-256("pcscid/v1|" + card-type + "|" + uid) )[:10]    # → xxx-xxx-xxxx
-```
-
-| Ingredient | Meaning |
-| --- | --- |
-| `card-type` | detected from the ATR: PC/SC part 3 contactless table (`mifare classic 1k`, `mifare ultralight ev1`, `felica`, `picopass 16k`, …), known full ATRs (`german eid/passport (npa)`, `yubikey 5 nfc`, `deutschlandticket (vdv-ka)`), or `unknown` |
-| `uid` | the card's own unique tag (4/7/10 bytes). Required: without a valid UID no btag is served at all (failed read or random UID) — the presentation is skipped silently in normal mode, `DEBUG=1` traces every detail. A type level ATR identity is never printed |
-
-The derivation is a pure function of card type + tag: no timestamps, no reader names, no machine state. The same card produces the same btag everywhere, forever — the digest is pinned by golden tests, so it can never change silently on you.
-
-### Hash stability: frozen forever
-
-Btags and reader tags are long lived identifiers: kiosks store them, chrony registers them, browser pages key on them. The following are the compatibility surface, not implementation details:
-
-- the domain strings `pcscid/v1`, `pcscid/reader/v1`, `v2`, `v3`, `m1`, their `|` separators, and the machine unit prefixes `serial:` / `port:` / `model`
-- SHA-256 over the concatenated domain separated bytes, with the UID hashed as raw bytes (never hex or text)
-- the alphabet order `0-9a-z`, the modulo-36 mapping, the dash layout (`xxx-xxx-xxxx` for btags, `xx-xxxx-xx` for reader tags) and both truncation lengths
-- the card type names returned by detection (a btag input) and the hotplug suffix stripping of reader names (a reader tag input)
-
-A new identity scheme always gets a **new versioned domain** (`v2`, `m2`, ...) and a new function; the existing function keeps serving its existing domain. Adding a card type, known ATR or reader name shape is allowed only with a golden row in `hash_test.go`. Golden values are never regenerated and tests are never weakened: any change there is a breaking release. The full test list is in `AGENTS.md` under the hash stability contract.
-
-### Reader identity: model, unit, machine
-
-Readers get the same treatment, with three tiers in decreasing portability:
-
-| Tier | Input | Tag domain | Stable across | Enabled by |
-| --- | --- | --- | --- | --- |
-| Model | normalized pcscd reader name (volatile hotplug indices stripped) | `pcscid/reader/v1` | everything | always |
-| Unit: hardware serial | `SCARD_ATTR_VENDOR_IFD_SERIAL_NO`, the USB iSerial burned into the unit | `pcscid/reader/v2` | machines, ports, daemon restarts | always (when the driver serves one) |
-| Unit: USB port path | `SCARD_ATTR_CHANNEL_ID` → sysfs `devpath` (e.g. `2-1.3`), or the sysfs CCID device scan when the driver serves no channel id | `pcscid/reader/v3` | daemon restarts, reboots, same port | `PCSCID_USB_PATH_ID=1` |
-| Machine scope | `MachineID()`, the MAC addresses of the physical ethernet ports | `pcscid/reader/m1` | everything within one machine | `PCSCID_MAC_ID=1` |
-
-Two units of the same model that report **no usable serial** — the ACS ACR122U family ships the same all-zero iSerial on every unit — collide on the model tag. The two options close that gap, opt-in because each trades portability:
+## Try it in 30 seconds
 
 ```console
-# Anchor serial-less readers to their physical USB port:
-# distinct tag per unit, stable as long as it stays in its port.
-$ PCSCID_USB_PATH_ID=1 ./pcscid
-
-# Scope every reader tag to this machine's hardware MACs:
-# identical readers on different kiosks get distinct tags.
-$ PCSCID_MAC_ID=1 ./pcscid
-
-# Fleet of kiosks, one ACR122U per port: combine both.
-$ PCSCID_USB_PATH_ID=1 PCSCID_MAC_ID=1 ./pcscid
-```
-
-The MAC filter takes only **physical ethernet ports** (sysfs `type` 1, a backing `device`, no `phy80211`): wifi, loopback, bridges, bonds, vlans and veth never enter the machine identity. The unit facts travel in `Event.ReaderSerial` / `Event.ReaderPort`, the composed tag in `Event.ReaderTag`. On the ACR122U specifically, neither the iSerial nor any NVRAM field is writable by host software — the port anchor is the only software-only per-unit identity that hardware has.
-
-**Port resolution is two staged:** the driver's channel id first, then a sysfs scan for the reader's CCID device by name (manufacturer and product strings, `bInterfaceClass 0x0B`).
-
-**N identical units (same model, empty iSerial, no channel id) are told apart by their USB traffic.** A plain card connection submits **no** URBs at all (the daemon already powered the card, the attribute answers come from driver memory), so the probe window carries the card's UID exchange plus pinning exchanges — real CCID bulk round trips — and the unit probe snapshots every candidate device's sysfs `urbnum` counter before and after them; the counter that moved belongs to the probed unit. That correlation is exact and independent of the daemon's reader order, so the same physical reader on the same full USB port path keeps its tag across service restarts, daemon restarts and reboots. A counter that does not single one device out refuses instead of guessing — unless every other candidate is already owned by another reader of the session, then the one free device is the unit's (elimination).
-
-**The session's unit registry keeps the identity persistent and collision free.** A resolved port belongs to exactly one reader name, a second reader never adopts it; a transient probe failure falls back to the remembered identity, so a reader's tag cannot flip between two presentations of the same card; and the registry is dropped on daemon reconnect, because a restart re-enumerates the volatile name suffixes. A multi-slot unit (one USB device, one reader per slot) qualifies the port with the pcscd slot group of the reader name (`2-1.3#01`), the first slot keeps the plain devpath so existing tags stay stable.
-
-## Quick start
-
-```console
+$ git clone https://github.com/paepckehh/pcscid
+$ cd pcscid
 $ make build
 $ ./pcscid
+```
+
+Requires a running `pcscd` and a reader it knows about. On a kiosk with an ACR122U:
+
+```console
+$ PCSCID_USB_PATH_ID=1 PCSCID_MAC_ID=1 ./pcscid
 #qr-xlrk-i5:r3v-401-5gmr
+#be-4t2k-pm:6gh-6gn-fwep
 ```
 
-One line per presentation: `#`, the reader tag, a colon, the btag. Nothing else — stdout is machine readable by design; the leading `#` marks a btag line. A presentation whose UID could not be read prints nothing: no btag without a valid UID, the failure is only visible in the `DEBUG=1` trace.
+stdout is machine-readable by design: one `#<reader-tag>:<btag>` line per presentation,
+nothing else. The startup inventory, settings and diagnostics go to stderr.
 
-At startup stderr carries the **reader inventory**: every reader registered with pcscd is evaluated once and printed with its details and hashes — reader name, model tag, per-unit facts (the USB port path resolves card-less when it is unambiguous, the hardware serial needs a presented card), the portability tier, the effective tag under the configured options, and the identification of a card that is already present. A present card without a readable UID is reported as `card="present without a valid uid, no btag"`, never with an ATR derived tag:
+## Two identities, one frozen contract
+
+<div align="center">
+<img src="docs/identity.svg" alt="pcscid identity pipeline: card type and UID produce a btag; reader serial, port, model and machine produce reader tags" width="100%">
+</div>
+
+### Card: the btag
+
+```text
+btag = alnum( SHA-256("pcscid/v1|" + card-type + "|" + uid) )[:10]
+       -> xxx-xxx-xxxx, digits and lowercase only
+```
+
+Pure function of card type and raw UID bytes. No timestamps, no reader names, no machine
+state. The same card produces the same btag everywhere.
+
+### Reader: model, unit, machine
+
+| Tier | Input | Domain | Stable across | Switch |
+| --- | --- | --- | --- | --- |
+| Model | normalized pcscd reader name | `pcscid/reader/v1` | everything | always |
+| Unit: serial | USB iSerial (`SCARD_ATTR_VENDOR_IFD_SERIAL_NO`) | `pcscid/reader/v2` | machines, ports, restarts | automatic |
+| Unit: USB port | kernel USB devpath (`SCARD_ATTR_CHANNEL_ID` → sysfs) | `pcscid/reader/v3` | reboots while in the same port | `PCSCID_USB_PATH_ID=1` |
+| Machine scope | physical ethernet MAC identity | `pcscid/reader/m1` | within one machine | `PCSCID_MAC_ID=1` |
+
+Serial-less readers (the ACR122U family serves the same all-zero iSerial on every unit) are
+told apart by their **USB traffic**: the probe window's URB burst moves exactly one
+candidate's sysfs `urbnum` counter. No guessing, no daemon reader order dependence.
+
+### The forever contract
+
+These are frozen and golden-tested, not implementation details:
+
+- domain strings and separators: `pcscid/v1`, `pcscid/reader/v1`, `v2`, `v3`, `m1`
+- raw UID bytes, SHA-256, the `0-9a-z` alphabet, modulo-36 mapping and dash layout
+- every card type string returned by detection
+- every `normalizeReaderName` hotplug-index edge case
+- the full 256-bit digest per domain, not only the visible truncation
+
+A new scheme gets a **new versioned domain** and a new function. Existing tags keep their
+existing bytes. New card types, ATRs and reader name shapes must add a golden row in
+[`hash_test.go`](hash_test.go). Golden values are never regenerated. See
+[AGENTS.md](AGENTS.md#hash-stability-contract-frozen-api) for the complete contract and
+test list.
+
+## Under the hood
+
+```text
+cmd/pcscid ─ pcscid ─ pcsc ─ /run/pcscd/pcscd.comm ─ pcscd
+                              │
+                              ├─ frames, codecs, version down-negotiation
+                              ├─ READER_STATE polling + change waits
+                              └─ connect / transmit / get-attrib / disconnect
+```
+
+The `pcsc` package implements the daemon wire protocol from scratch: framed requests,
+header-less raw struct responses, protocol 4.4+ wait registration with client-side timeout
+and stop, old 4.2/4.3 wait bodies, and the one unframed `CMD_TRANSMIT` exchange.
+
+Identity layers:
+
+- `uid.go` insists on the card UID across activation races and wedged PICC states, with a
+  card reset and a generous reopen budget for the ACR122U anti-collision rerun.
+- `readerid.go` resolves serial, channel id, sysfs port paths, CCID device matching, URB
+  correlation and the session unit registry.
+- `readers.go` produces the startup inventory with exactly the tags the event stream will
+  carry.
+- `sign.go` parses OpenSSH ed25519 keys and emits SSHSIG signatures compatible with
+  `ssh-keygen -Y verify`.
+
+## Bridge mode: for browser kiosks
+
+<div align="center">
+<img src="docs/bridge.svg" alt="pcscid bridge mode: health, SSE card events and polling JSON on loopback HTTP" width="100%">
+</div>
+
+A browser cannot open the `pcscd` Unix socket. Set `PCSCID_HTTP_ADDR` and the same binary
+serves reader tags and btags over loopback HTTP with permissive CORS:
+
+| Endpoint | Answer |
+| --- | --- |
+| `GET /health` | `{"ok":true,"version":"v0.0.169"}` |
+| `GET /events` | SSE: `hello`, then one `card` event per scan, 20 s keep-alive |
+| `GET /pending?after=N` | JSON replay by monotonic cursor, ring keeps 64 |
 
 ```console
-$ ./pcscid
-time=... level=INFO msg="reader identified" reader="ACS ACR122U 01 00 00" \
-    model=qr-xlrk-i5 tag=be-4t2k-pm tier=serial serial=A001 \
-    card=r3v-401-5gmr card_type="mifare classic 1k" card_source=uid
+$ PCSCID_HTTP_ADDR=127.0.0.1:8976 ./pcscid
+$ curl http://127.0.0.1:8976/health
+{"ok":true,"version":"v0.0.169"}
 ```
 
-A reader without a card cannot be probed for its hardware serial (that needs the card connection); with `PCSCID_USB_PATH_ID=1` its USB port is still pinned from the sysfs device scan when it is unambiguous, otherwise it reports the model level tag until its first scan upgrades the identity.
-
-`DEBUG=1` turns on a full verbose trace on stderr while stdout stays clean:
-
-```console
-$ DEBUG=1 ./pcscid
-time=... level=DEBUG msg="pcscd connected" socket=/run/pcscd/pcscd.comm version=4.5
-time=... level=DEBUG msg="card inserted" reader="ACS ACR122U 00 00" \
-    id=r3v-401-5gmr reader-tag=qr-xlrk-i5 type="mifare classic 1k" source=uid \
-    uid="04 11 22 33" protocol=T=1
-#qr-xlrk-i5:r3v-401-5gmr
-```
-
-When the UID read fails, `DEBUG=1` keeps the whole picture — the per-exchange trace and one summary record with every fact — while normal mode prints nothing at all:
-
-```console
-$ DEBUG=1 ./pcscid
-time=... level=DEBUG msg="uid apdu rejected" reader="ACS ACR122U 00 00" attempt=3 sw="63 00"
-time=... level=DEBUG msg="uid unreadable after every round, the card presentation is skipped (no btag without a valid uid)" \
-    reader="ACS ACR122U 00 00" rounds=3 …
-time=... level=DEBUG msg="card presentation skipped, no btag without a valid uid" \
-    reader="ACS ACR122U 00 00" reader-tag=qr-xlrk-i5 type="mifare classic 1k" \
-    uid="" atr="3B 8F …" protocol=T=1 \
-    consequence="no reader/btag line is printed for this presentation"
-```
-
-`./pcscid -version` prints the build-time semver (injected from the latest git tag by `make build`).
+The listen address must be loopback unless `PCSCID_HTTP_ALLOW_REMOTE=1` lifts the guard.
+Card identities should never leave the kiosk by accident.
 
 ## Signed output lines
 
-Set `PCSCID_SIGN_KEY` to the path of a usable, passphrase-less **ssh-ed25519** private key and every output line is extended by `$` and the base64 SSHSIG signature of the line itself, the signature format of `ssh-keygen -Y sign`:
+Set `PCSCID_SIGN_KEY` to a passphrase-less `ssh-ed25519` private key. Every stdout line and
+every bridge event is extended with the base64 SSHSIG signature of the exact line
+`#<reader-tag>:<btag>`, verifiable with the stock OpenSSH tool:
 
 ```console
 $ PCSCID_SIGN_KEY=/etc/pcscid/id_ed25519 ./pcscid
 #qr-xlrk-i5:r3v-401-5gmr$U1NIU0lHAAAAAQAAA…
 ```
 
-A kiosk's consumers can prove every line came from that machine. Verify with the stock ssh-keygen (the base64 blob is the armored block's payload, wrapped at 70 columns):
+Namespace is `pcscid`. A configured but unusable key fails the startup instead of silently
+producing unsigned output.
 
-```console
-$ line='#qr-xlrk-i5:r3v-401-5gmr$U1NIU0lHAAAAAQAAA…'
-$ printf '%s' "${line%%\$*}" > msg          # the message: everything before the $
-$ (echo "-----BEGIN SSH SIGNATURE-----"; \
-    echo "${line#*\$}" | fold -w 70; echo "-----END SSH SIGNATURE-----") > sig
-$ echo "kiosk $(cat id_ed25519.pub)" > allowed_signers
-$ ssh-keygen -Y verify -f allowed_signers -I kiosk -n pcscid -s sig < msg
-Good "pcscid" signature for kiosk with ED25519 key SHA256:…
+## Library
+
+```go
+opts := &pcscid.Options{
+    USBPathID: true,
+    MACID:     true,
+    Logger:    logger,
+}
+events, err := pcscid.Watch(ctx, opts)
+if err != nil {
+    return err
+}
+for ev := range events {
+    if ev.Kind == pcscid.KindInsert {
+        fmt.Printf("#%s:%s\n", ev.ReaderTag, ev.Card.ID)
+    }
+}
 ```
 
-Mind the `\$` escapes: an unescaped `${line%%$*}` expands `$*` (the shell's positional parameters) instead of matching the literal `$`, and the verification fails. The signature covers the exact bytes of the line (`#<reader-tag>:<btag>`), the namespace is `pcscid`.
+Also exported: `Btag`, `ReaderTag`, `ReaderTagWithSerial`, `ReaderTagWithUnit`,
+`ReaderTagWithMachine`, `DetectType`, `ParseATR`, `IdentifyReaders`, `MachineID`,
+`NewBridge`, `RequireLoopback`, `NewSigner`.
 
-A configured but unusable key (encrypted, wrong type, damaged) fails the startup instead of silently producing unsigned output.
-
-## Bridge mode: loopback HTTP for browser pages
-
-A browser sandbox cannot open `/run/pcscd/pcscd.comm` — no Unix sockets from WASM or page JavaScript, no WebUSB/WebHID in Firefox. Set `PCSCID_HTTP_ADDR` and the same binary additionally serves every presentation's **reader tag** and **btag** as loopback HTTP, CORS-permissive so an HTTPS kiosk page may read `http://127.0.0.1:8976` without mixed content trouble:
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /health` | `{"ok":true,"version":...}` liveness probe |
-| `GET /events` | SSE stream: `hello` event, then one `card` event per scan, 20 s keep-alive comments |
-| `GET /pending?after=N` | JSON `{"events":[...]}` polling fallback, replay by monotonic cursor |
+## Configuration
 
 | Variable | Effect |
 | --- | --- |
-| `PCSCID_HTTP_ADDR` | Bridge listen address, e.g. `127.0.0.1:8976`. Empty (the default) disables bridge mode |
-| `PCSCID_HTTP_ALLOW_REMOTE` | `1` lifts the loopback guard. Without it only loopback addresses are accepted — **card identities must never leave the kiosk by accident** |
+| `DEBUG=1` | Full protocol and identity trace on stderr, stdout stays clean |
+| `PCSCID_USB_PATH_ID=1` | Anchor serial-less readers to their physical USB port |
+| `PCSCID_MAC_ID=1` | Mix the machine MAC identity into every reader tag |
+| `PCSCID_HTTP_ADDR` | Enable the loopback HTTP bridge on this address |
+| `PCSCID_HTTP_ALLOW_REMOTE=1` | Allow a non-loopback bridge listen address |
+| `PCSCID_SIGN_KEY` | Sign every output line and bridge event with an SSH ed25519 key |
+| `PCSCLITE_CSOCK_NAME` | Override the `pcscd` socket path |
 
-Worked examples against a running bridge:
-
-```console
-$ curl http://127.0.0.1:8976/health
-{"ok":true,"version":"v0.0.161"}
-
-$ curl -N http://127.0.0.1:8976/events
-event: hello
-data: {"version":"v0.0.161"}
-
-: keep-alive
-
-event: card
-data: {"id":1,"reader":"qr-xlrk-i5","card":"r3v-401-5gmr"}
-
-$ curl 'http://127.0.0.1:8976/pending?after=0'
-{"events":[{"id":1,"reader":"qr-xlrk-i5","card":"r3v-401-5gmr"}]}
-```
-
-A kiosk page listens with a few lines of JavaScript — the permissive CORS is what allows an HTTPS page to read the loopback stream:
-
-```js
-const events = new EventSource("http://127.0.0.1:8976/events");
-events.addEventListener("card", (e) => {
-  const scan = JSON.parse(e.data);   // {id, reader, card}
-  console.log(scan.reader, scan.card);
-});
-
-// Polling fallback (browsers or embedders without EventSource):
-async function pending(after) {
-  const r = await fetch(`http://127.0.0.1:8976/pending?after=${after}`);
-  const {events} = await r.json();
-  return events;                      // [{id, reader, card}], oldest first
-}
-```
-
-The `id` cursor is monotonic: pass the last seen `id` as `after` and `/pending` replays only what came after it (the ring retains the last 64 presentations). Every endpoint answers with `Access-Control-Allow-Origin: *`; unsupported methods are rejected with 405.
-
-A 2 s startup grace swallows Watch's initial "cards already present" report (a card left on a reader never triggers after a service restart) and the same reader+card pair is debounced for 3 s. `scripts/pcscid-bridge.service` is the ready-made, hardened systemd unit (`After=pcscd`, `DynamicUser`, `ProtectSystem=strict`, …); it ships with `PCSCID_USB_PATH_ID=1` so serial-less kiosk readers get per-unit port tags, and every further `PCSCID_*` option (the shell export never reaches a systemd service) goes into the unit as an `Environment=` line. The startup settings report on stderr confirms what took effect: `journalctl -u pcscid-bridge` shows `settings ... usb_path_id=true`.
+## Build, test, release
 
 ```console
-$ PCSCID_HTTP_ADDR=127.0.0.1:8976 ./pcscid
-#qr-xlrk-i5:r3v-401-5gmr
+$ make build     # static binary with the git tag as semver
+$ make test      # parallel, no hardware, no test cache
+$ make check     # gofmt, go vet, go mod tidy diff
 ```
 
-## Use the library
+Release artifacts are cross-compiled for linux, freebsd, openbsd and netbsd on amd64 and
+arm64, plus deb/rpm packages and SHA-256 checksums. The runtime is Linux-only; the pure Go
+binary itself compiles everywhere.
 
-```go
-events, err := pcscid.Watch(ctx, &pcscid.Options{Logger: logger})
-if err != nil {
-	log.Fatal(err) // pcscd is a hard requirement
-}
-for ev := range events {
-	switch ev.Kind {
-	case pcscid.KindInsert:
-		// Source is "uid": an insertion event always carries a
-		// valid UID derived btag, unidentifiable cards are never
-		// reported as insertions.
-		fmt.Println(ev.Card.ID, ev.Card.Type, ev.Card.Source)
-	case pcscid.KindRemove:
-		fmt.Println("removed from", ev.Reader)
-	}
-}
-```
+## Security and privacy
 
-`Watch` reports cards already present at startup, follows hot-plugged readers, reconnects across `pcscd` restarts without re-reporting still-present cards, and closes its channel when the context is cancelled.
+- The btag is a truncated SHA-256 identifier, not a secret. Treat it like a username,
+  never like a password or a key.
+- No card data leaves the machine unless you enable the bridge, and even then the default
+  listen guard is loopback-only.
+- Random/rotating UIDs are rejected by design: privacy-preserving cards get no btag and no
+  output line.
+- SSHSIG signatures cover the exact output bytes, so downstream consumers can enforce
+  signed punches from the kiosk.
 
-`IdentifyReaders(&opts)` answers the one-shot startup inventory the sample app prints: every registered reader with its details and hashes — model tag, probed unit facts, portability tier, effective tag and the identification of a card already present. With `USBPathID` enabled every reader is pinned by its USB port at startup: the sysfs device scan resolves card-less readers too (one unambiguous candidate, or elimination over the already claimed ones); the hardware serial still waits for the first card presentation.
+---
 
-The fine-grained pieces are exported too:
+<div align="center">
 
-```go
-pcscid.DetectType(atr)     // "mifare classic 1k"
-pcscid.ParseATR(atr)       // full ISO 7816-3 breakdown, with TCK check
-pcscid.ReaderTag(reader)         // the model level xx-xxxx-xx reader tag
-pcscid.ReaderTagWithUnit(r, serial, port)  // + hardware serial / USB port identity
-pcscid.ReaderTagWithMachine(r, serial, port, mac) // + machine identity
-pcscid.MachineID()          // physical ethernet MACs, "aa:…|aa:…"
-pcscid.Btag(type, uid)     // the xxx-xxx-xxxx btag
-```
+**Docs:** [AGENTS.md](AGENTS.md) · [LICENSE](LICENSE) · [Issues](https://github.com/paepckehh/pcscid/issues)
 
-And the bridge is a library piece as well — feed it from any event loop:
+*NFC · MIFARE · RFID · ISO 14443 · eID · YubiKey · contact cards — if pcscd sees it, pcscid identifies it.*
 
-```go
-bridge := pcscid.NewBridge(nil)          // ring buffer, dedup and grace defaults
-go bridge.Serve(ctx, "127.0.0.1:8976")   // or mount bridge.Handler() yourself
-for ev := range events {
-	bridge.Feed(ev)                       // inserts become {reader tag, btag} events
-}
-```
-
-## Card types recognized
-
-| Source | Cards |
-| --- | --- |
-| PC/SC part 3 ATR table | MIFARE Classic 1K/4K, Mini, Ultralight / C / EV1, MIFARE Plus SL1/SL2, FeliCa, PicoPass family, Topaz, Jewel, ICODE family, SLE55R / my-d, TAG IT, LRI family, AT88 family, Melexis sensor tag |
-| Known ATRs | German eID / passport (npa), YubiKey 5 NFC, Deutschlandticket (VDV-KA) |
-| Everything else | `unknown` type — still identified by UID when the reader provides one; the UID probe works for any ISO 14443 tag and most contactless readers |
-
-## How it works
-
-```text
-cmd/pcscid ──▶ pcscid.Watch ──▶ pcsc.Client ──▶ /run/pcscd/pcscd.comm ──▶ pcscd ──▶ reader ──▶ card
-                (events, IDs)    (pure Go          (wire protocol 4.5 or 4.4,
-                                  client)           negotiated per daemon)
-```
-
-1. `pcsc.Client` performs the header-less version handshake (claims 4.4, adopts 4.5 when pcscd 2.x offers it, down-negotiates for old daemons), establishes a context and fetches the 16-entry `READER_STATE` array — reader names, presence bits, event counters, ATRs.
-2. Card insertions (presence bit plus event counter change) trigger identification: connect in shared mode, negotiate T=0/T=1, transmit the UID pseudo-APDU, disconnect.
-3. The ATR yields the card type; type plus UID yields the btag. A valid UID is mandatory: when the UID read fails after its full retry and card-reset budget, or the card serves an ISO/IEC 14443-3 random UID, the presentation is skipped — no insertion event, no output line, silently in normal mode and fully traced under `DEBUG=1`.
-4. Reader state waits are bounded at a 250 ms tick; timeouts are client-side and unblock the daemon through the stop request, so the stream stays in sync. Context cancellation closes the socket for an instant exit. With no reader registered the daemon answers the wait immediately — the loop polls gently instead of spinning.
-
-The empirical protocol gotchas (header-less responses, the unframed APDU bytes of `CMD_TRANSMIT`, the registration dump that is *not* a change signal) are documented in the code and covered by tests against both daemon generations.
-
-## Security posture
-
-- The bridge listens on **loopback only** by default (`PCSCID_HTTP_ALLOW_REMOTE` is the explicit, deliberate escape hatch).
-- Permissive CORS is a kiosk trade-off: it also means every page open in a browser *on the kiosk itself* can read scans — run bridge mode only on a locked-down terminal, never on a multi-user desktop.
-- The btag is a truncated SHA-256 (~52 bits) — an identifier, not a secret. Treat a btag like a username, never like a password or a key.
-- Response reads are fixed-size structs (the client never trusts a daemon-side length except the transmit answer, which is capped at the 264-byte short APDU buffer with an error beyond it), so a misbehaving daemon cannot turn the client into a giant allocation.
-
-## Requirements & install
-
-- Linux with `pcscd` running (pcsc-lite 1.8.24+ speaks protocol 4.4/4.5 natively; older daemons are handled through down-negotiation)
-- Go 1.27+ to build (any Go 1.26+ toolchain auto-downloads the pinned version from `go.mod`)
-- Socket `/run/pcscd/pcscd.comm` (`PCSCLITE_CSOCK_NAME` overrides)
-
-```console
-$ go install paepcke.de/pcscid/cmd/pcscid@latest     # from the module host
-$ git clone https://paepcke.de/pcscid && make build  # from source, with semver baked in
-```
-
-## Project layout
-
-```text
-cmd/pcscid/        sample app: bare btags, full trace with DEBUG=1, bridge with PCSCID_HTTP_ADDR
-pcsc/              pure Go pcscd wire-protocol client (Linux)
-internal/pcscfake  in-process fake pcscd daemon driving the hardware-free tests
-pcscid.go          Watch loop, event model, btag and reader tag derivation
-readerid.go        reader unit identity: serial/channel-id probes, sysfs USB port resolution, URB traffic correlation, machine identity
-bridge.go          loopback HTTP bridge: SSE + polling of reader tags and btags
-atr.go             ISO 7816-3 answer-to-reset parser
-cardtype.go        ATR to card type detection (PC/SC part 3 table, known ATRs)
-uid.go             UID pseudo-APDU probe, random UID detection
-sign.go            SSHSIG line signatures (pure stdlib ssh-ed25519)
-version.go         semver via go linker -ldflags injection
-scripts/           hardened systemd unit for bridge mode on a kiosk
-```
-
-## Development
-
-```console
-$ make build   # binary with the latest git tag baked in as the semver
-$ make check   # gofmt, go vet, go mod tidy
-$ make test    # full suite, fully parallel, no hardware needed
-$ make push    # pull, then push commits and tags
-```
-
-The semver of `./pcscid -version` comes from `git describe --tags --abbrev=0` through
-`-ldflags "-X paepcke.de/pcscid.version=<tag>"`; without injection the binary falls back
-to the VCS revision recorded in the Go build info, and finally to the current release tag.
-
-## Testing
-
-```console
-$ make test    # go test ./... — fully parallel, no hardware needed
-```
-
-The fake daemon re-implements the wire protocol a second time, so client and fake agreeing is itself part of the test; it emulates all three daemon generations (4.4, 4.5, and the 4.2 downgrade). The client was additionally verified live against a real pcscd 2.4.1.
-
-## License
-
-[MIT](LICENSE)
+</div>

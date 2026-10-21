@@ -902,3 +902,61 @@ func TestNormalizeReaderName(t *testing.T) {
 		}
 	}
 }
+
+// TestWatchDaemonRestartReportsSwappedCard pins the other side of the
+// daemon restart rule: a card that never moved is not re-reported, but
+// a different card that took its place across the outage must be. The
+// event counters reset with the daemon, so the reconnect has to probe
+// the present cards once and compare the identity with the last
+// reported one.
+func TestWatchDaemonRestartReportsSwappedCard(t *testing.T) {
+	t.Parallel()
+	uidA := []byte{0x04, 0x11, 0x22, 0x33}
+	uidB := []byte{0x04, 0x44, 0x55, 0x66}
+
+	first := newFake(t)
+	first.InsertCard("R", mifareATR, uidA)
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	tracking := newTracking()
+	ch := make(chan Event, 8)
+	lg := discardLogger()
+	clA, err := pcsc.New(first.Addr(), lg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { clA.Close() })
+	done := make(chan error, 1)
+	go func() { done <- pollLoop(ctx, clA, tracking, watchEnv{}, lg, ch) }()
+	ev := receiveEvent(t, ch, 3*time.Second)
+	if ev.Kind != KindInsert || ev.Card.ID != Btag("mifare classic 1k", uidA) {
+		t.Fatalf("event = %+v, want the first card", ev)
+	}
+	cancel()
+	clA.Close()
+	<-done
+
+	// The daemon restarts with a different card in the same reader.
+	second := newFake(t)
+	second.InsertCard("R", mifareATR, uidB)
+	ctx2, cancel2 := context.WithCancel(t.Context())
+	t.Cleanup(cancel2)
+	clB, err := pcsc.New(second.Addr(), lg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { clB.Close() })
+	ch2 := make(chan Event, 8)
+	done2 := make(chan error, 1)
+	go func() { done2 <- pollLoop(ctx2, clB, tracking, watchEnv{}, lg, ch2) }()
+	ev = receiveEvent(t, ch2, 3*time.Second)
+	if ev.Kind != KindInsert {
+		t.Fatalf("kind = %v, want insert for the swapped card", ev.Kind)
+	}
+	if want := Btag("mifare classic 1k", uidB); ev.Card.ID != want {
+		t.Errorf("ID = %q, want %q for the swapped card", ev.Card.ID, want)
+	}
+	cancel2()
+	clB.Close()
+	<-done2
+}

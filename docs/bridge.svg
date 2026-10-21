@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">pcscid bridge mode</title>
+  <desc id="desc">A loopback HTTP bridge serves health, SSE card events and polling JSON with optional SSHSIG signatures.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b18"/>
+      <stop offset="1" stop-color="#11142e"/>
+    </linearGradient>
+    <linearGradient id="term" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161c34"/>
+      <stop offset="1" stop-color="#0d1226"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a3356"/>
+      <stop offset="1" stop-color="#1a213d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.85" cy="0.1" r="0.7">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+      .sans { font-family: Inter, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      .dim { fill: #7f8bb2; }
+      .muted { fill: #aab4d8; }
+      .ink { fill: #eef2ff; }
+      .accent { fill: #27e0a6; }
+      .blue { fill: #8be9fd; }
+      .gold { fill: #ffd166; }
+      .purple { fill: #c792ea; }
+      .line { font-size: 21px; }
+      .small { font-size: 17px; }
+      .tiny { font-size: 14px; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="620" fill="url(#bg)"/>
+  <rect width="1200" height="620" fill="url(#glow)"/>
+
+  <text x="80" y="78" class="sans" font-size="28" font-weight="700" fill="#eef2ff">The browser cannot see pcscd. The bridge can.</text>
+  <text x="80" y="108" class="sans small dim">Loopback HTTP · SSE + polling · permissive CORS · optional SSHSIG per event</text>
+
+  <g>
+    <rect x="80" y="146" width="1040" height="420" rx="18" fill="url(#term)" stroke="#2c3760" stroke-width="1.5"/>
+    <rect x="80" y="146" width="1040" height="50" rx="18" fill="url(#bar)"/>
+    <rect x="80" y="184" width="1040" height="12" fill="url(#bar)"/>
+    <circle cx="114" cy="171" r="7" fill="#ff5f56"/>
+    <circle cx="138" cy="171" r="7" fill="#ffbd2e"/>
+    <circle cx="162" cy="171" r="7" fill="#27c93f"/>
+    <text x="600" y="178" text-anchor="middle" class="mono" font-size="14" fill="#c9d2f2">127.0.0.1:8976 · kiosk page / terminal</text>
+
+    <g class="mono">
+      <text x="116" y="238" class="line accent">$ curl http://127.0.0.1:8976/health</text>
+      <text x="116" y="268" class="line muted">{"ok":true,"version":"v0.0.169"}</text>
+
+      <text x="116" y="316" class="line accent">$ curl -N http://127.0.0.1:8976/events</text>
+      <text x="116" y="346" class="line blue">event: hello</text>
+      <text x="116" y="374" class="line muted">data: {"version":"v0.0.169"}</text>
+      <text x="116" y="402" class="line dim">: keep-alive</text>
+      <text x="116" y="438" class="line blue">event: card</text>
+      <text x="116" y="466" class="line muted">data: {"id":1,"reader":"qr-xlrk-i5","card":"r3v-401-5gmr"}</text>
+      <text x="116" y="494" class="line purple">data: {…,"sig":"U1NIU0lHAAAAAQAAA…"}</text>
+
+      <text x="116" y="538" class="line accent">$ curl 'http://127.0.0.1:8976/pending?after=0'</text>
+    </g>
+  </g>
+
+  <g>
+    <rect x="760" y="486" width="334" height="58" rx="10" fill="#10251f" stroke="#27e0a6"/>
+    <text x="784" y="511" class="mono tiny accent">SSE + polling</text>
+    <text x="784" y="532" class="mono tiny dim">no Unix socket in the browser required</text>
+  </g>
+
+  <text x="1130" y="596" text-anchor="end" class="mono tiny dim">PCSCID_HTTP_ADDR=127.0.0.1:8976 ./pcscid</text>
+</svg>

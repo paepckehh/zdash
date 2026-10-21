@@ -274,7 +274,9 @@ a test fix. The guard rails are `TestBtagCardTypesGolden`,
   monotonic cursor, ring keeps 64). Dedup: 2 s startup grace swallows
   the initial "already present" report, the same reader+card pair is
   suppressed for 3 s (`bridgeStartupGrace` / `bridgeDedupWindow` /
-  `bridgeCapacity`).
+  `bridgeCapacity`). `Feed` ignores every insertion without a card
+  btag (nil card or empty `Card.ID`): no identity is served or signed
+  for a presentation that has none.
 - With a signer every event carries the base64 SSHSIG of its exact
   output line `#<reader>:<card>` in `sig`, byte-identical to the
   stdout `$` signature. `scripts/pcscid-bridge.service` is the
@@ -315,7 +317,11 @@ a test fix. The guard rails are `TestBtagCardTypesGolden`,
   field detection and the operator removes the card right after.
 - Event counters are only comparable within one daemon session:
   `pollLoop` drops the remembered counters on every (re)connection,
-  a card that never moved is not re-reported.
+  a card that never moved is not re-reported. The other half of that
+  rule is `readerTracking.lastID`: present readers are re-probed once
+  after a reconnect, so a card swapped while the daemon was away is
+  reported, while the unchanged card stays silent
+  (`TestWatchDaemonRestartReportsSwappedCard`).
 - `Close` never waits for responses: stop request (4.4+) + release
   best effort, then socket close — also the cancellation path of a
   blocked wait. A `Client` is driven by a single goroutine; only

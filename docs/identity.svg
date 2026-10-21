@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">pcscid identity pipeline</title>
+  <desc id="desc">A card UID and type produce a btag through a frozen hash domain; reader model, serial, port and machine tiers produce reader tags.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b18"/>
+      <stop offset="1" stop-color="#12162f"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#ff9f43"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1ed7a0"/>
+      <stop offset="1" stop-color="#5b8cff"/>
+    </linearGradient>
+    <linearGradient id="read" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+      .sans { font-family: Inter, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      .dim { fill: #8792b8; }
+      .muted { fill: #b4bee0; }
+      .ink { fill: #eef2ff; }
+      .accent { fill: #27e0a6; }
+      .blue { fill: #8be9fd; }
+      .gold { fill: #ffd166; }
+      .purple { fill: #c792ea; }
+      .small { font-size: 15px; }
+      .tiny { font-size: 13px; }
+      .h { font-size: 20px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="660" fill="url(#bg)"/>
+  <text x="70" y="70" class="sans h ink">Two identities. One frozen contract.</text>
+  <text x="70" y="98" class="sans small dim">Card identity is a pure function of type + UID. Reader identity climbs the most portable tier the driver can prove.</text>
+
+  <g>
+    <rect x="70" y="140" width="470" height="220" rx="18" fill="#10162d" stroke="#26305a"/>
+    <text x="100" y="178" class="sans h gold">CARD → BTAG</text>
+    <rect x="100" y="204" width="116" height="74" rx="10" fill="url(#card)"/>
+    <rect x="118" y="222" width="48" height="38" rx="5" fill="#c47d16" opacity="0.55"/>
+    <text x="232" y="228" class="mono small ink">mifare classic 1k</text>
+    <text x="232" y="252" class="mono small dim">UID 04 11 22 33</text>
+    <text x="232" y="276" class="mono tiny dim">FF CA 00 00 00 → anti-collision UID</text>
+    <text x="100" y="326" class="mono small blue">SHA-256("pcscid/v1|type|uid")[:10]</text>
+    <text x="100" y="348" class="mono tiny dim">raw bytes · domain separated · never ATR-derived</text>
+    <rect x="342" y="302" width="172" height="46" rx="10" fill="#1c2b45" stroke="#27e0a6"/>
+    <text x="428" y="332" text-anchor="middle" class="mono small gold">r3v-401-5gmr</text>
+  </g>
+
+  <g>
+    <rect x="660" y="140" width="470" height="450" rx="18" fill="#10162d" stroke="#26305a"/>
+    <text x="690" y="178" class="sans h blue">READER → TAG</text>
+    <rect x="690" y="202" width="410" height="62" rx="10" fill="#151d38" stroke="#3b4a7a"/>
+    <text x="708" y="226" class="mono small accent">serial</text>
+    <text x="782" y="226" class="mono tiny dim">pcscid/reader/v2</text>
+    <text x="708" y="250" class="mono small ink">USB iSerial burned into the unit</text>
+    <text x="1078" y="250" text-anchor="end" class="mono small gold">dw-wigt-z8</text>
+    <text x="708" y="272" class="mono tiny dim">portable across machines and ports</text>
+
+    <rect x="690" y="284" width="410" height="62" rx="10" fill="#151d38" stroke="#3b4a7a"/>
+    <text x="708" y="308" class="mono small accent">port</text>
+    <text x="756" y="308" class="mono tiny dim">pcscid/reader/v3</text>
+    <text x="708" y="332" class="mono small ink">kernel USB devpath, e.g. 2-1.3</text>
+    <text x="1078" y="332" text-anchor="end" class="mono small gold">ek-0gkq-n2</text>
+    <text x="708" y="354" class="mono tiny dim">opt-in · stable while it stays in its port</text>
+
+    <rect x="690" y="366" width="410" height="62" rx="10" fill="#151d38" stroke="#3b4a7a"/>
+    <text x="708" y="390" class="mono small accent">model</text>
+    <text x="764" y="390" class="mono tiny dim">pcscid/reader/v1</text>
+    <text x="708" y="414" class="mono small ink">normalized pcscd reader name</text>
+    <text x="1078" y="414" text-anchor="end" class="mono small gold">qr-xlrk-i5</text>
+    <text x="708" y="436" class="mono tiny dim">always available · hotplug indices stripped</text>
+
+    <rect x="690" y="448" width="410" height="62" rx="10" fill="#151d38" stroke="#3b4a7a"/>
+    <text x="708" y="472" class="mono small accent">machine</text>
+    <text x="788" y="472" class="mono tiny dim">pcscid/reader/m1</text>
+    <text x="708" y="496" class="mono small ink">physical ethernet MAC identity</text>
+    <text x="1078" y="496" text-anchor="end" class="mono small gold">vh-mzk6-9x</text>
+    <text x="708" y="518" class="mono tiny dim">opt-in · identical kiosks get distinct tags</text>
+
+    <text x="690" y="562" class="mono tiny dim">tier order: serial → port → model · machine mixed when enabled</text>
+  </g>
+
+  <g>
+    <rect x="70" y="390" width="470" height="200" rx="18" fill="#10162d" stroke="#26305a"/>
+    <text x="100" y="428" class="sans h accent">WHY IT NEVER CHANGES</text>
+    <text x="100" y="462" class="mono tiny muted">• versioned hash domains (v1, v2, v3, m1)</text>
+    <text x="100" y="486" class="mono tiny muted">• full 256-bit golden digests per domain</text>
+    <text x="100" y="510" class="mono tiny muted">• every card type, ATR, UID shape pinned</text>
+    <text x="100" y="534" class="mono tiny muted">• every reader name edge case pinned</text>
+    <text x="100" y="558" class="mono tiny dim">a new scheme = a new domain, never an edit</text>
+  </g>
+
+  <text x="1130" y="630" text-anchor="end" class="mono tiny dim">frozen hash contract · golden tested</text>
+</svg>

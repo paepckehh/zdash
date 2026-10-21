@@ -89,6 +89,9 @@ func TestBridgeFeedDerivesTags(t *testing.T) {
 	b.Feed(Event{Kind: KindInsert, Reader: "ACS ACR122U 01 00 00", Card: &Card{ID: "r3v-401-5gmr"}})
 	b.Feed(Event{Kind: KindRemove, Reader: "ACS ACR122U 01 00 00"})
 	b.Feed(Event{Kind: KindInsert, Reader: "REINER cyberJack 00 00"})
+	// A card without a btag (no valid UID) must never become a bridge
+	// presentation: there is no identity to serve or sign.
+	b.Feed(Event{Kind: KindInsert, Reader: "ACS ACR122U 01 00 00", Card: &Card{}})
 	got := b.hub.since(0)
 	if len(got) != 1 {
 		t.Fatalf("exactly one card event expected, got %+v", got)
