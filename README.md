@@ -47,6 +47,17 @@ ID = alnum( SHA-256("pcscid/v1|" + card-type + "|" + uid) )[:10]    # → xxx-xx
 
 The derivation is a pure function of card type + tag: no timestamps, no reader names, no machine state. The same card produces the same btag everywhere, forever — the digest is pinned by golden tests, so it can never change silently on you.
 
+### Hash stability: frozen forever
+
+Btags and reader tags are long lived identifiers: kiosks store them, chrony registers them, browser pages key on them. The following are the compatibility surface, not implementation details:
+
+- the domain strings `pcscid/v1`, `pcscid/reader/v1`, `v2`, `v3`, `m1`, their `|` separators, and the machine unit prefixes `serial:` / `port:` / `model`
+- SHA-256 over the concatenated domain separated bytes, with the UID hashed as raw bytes (never hex or text)
+- the alphabet order `0-9a-z`, the modulo-36 mapping, the dash layout (`xxx-xxx-xxxx` for btags, `xx-xxxx-xx` for reader tags) and both truncation lengths
+- the card type names returned by detection (a btag input) and the hotplug suffix stripping of reader names (a reader tag input)
+
+A new identity scheme always gets a **new versioned domain** (`v2`, `m2`, ...) and a new function; the existing function keeps serving its existing domain. Adding a card type, known ATR or reader name shape is allowed only with a golden row in `hash_test.go`. Golden values are never regenerated and tests are never weakened: any change there is a breaking release. The full test list is in `AGENTS.md` under the hash stability contract.
+
 ### Reader identity: model, unit, machine
 
 Readers get the same treatment, with three tiers in decreasing portability:

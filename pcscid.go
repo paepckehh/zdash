@@ -144,6 +144,22 @@ type Options struct {
 // digests in: digits and lower case letters only.
 const btagAlphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
 
+// Hash domain strings, separators and unit kind prefixes are part of
+// the published identity contract. Existing values are frozen: a new
+// identity scheme gets a new versioned domain, never an edit here.
+const (
+	btagDomain          = "pcscid/v1|"
+	readerModelDomain   = "pcscid/reader/v1|"
+	readerSerialDomain  = "pcscid/reader/v2|"
+	readerPortDomain    = "pcscid/reader/v3|"
+	readerMachineDomain = "pcscid/reader/m1|"
+	identitySeparator   = "|"
+
+	readerUnitSerialPrefix = "serial:"
+	readerUnitPortPrefix   = "port:"
+	readerUnitModel        = "model"
+)
+
 // btagFormat groups n digest characters at the given dash positions.
 func btagFormat(sum []byte, n int, dashes ...int) string {
 	id := make([]byte, 0, n+len(dashes))
@@ -179,7 +195,7 @@ func digestID(parts ...[]byte) [sha256.Size]byte {
 // UID cannot be read is never served a btag derived from its ATR,
 // which would only identify the card type, not the individual card.
 func Btag(cardType string, tag []byte) string {
-	sum := digestID([]byte("pcscid/v1|"), []byte(cardType), []byte("|"), tag)
+	sum := digestID([]byte(btagDomain), []byte(cardType), []byte(identitySeparator), tag)
 	return btagFormat(sum[:], 10, 3, 6)
 }
 
@@ -197,7 +213,7 @@ func Btag(cardType string, tag []byte) string {
 // names carry no serial number share one tag, ReaderTagWithSerial
 // fixes that with the serial from the driver when one is available.
 func ReaderTag(reader string) string {
-	sum := digestID([]byte("pcscid/reader/v1|"), []byte(normalizeReaderName(reader)))
+	sum := digestID([]byte(readerModelDomain), []byte(normalizeReaderName(reader)))
 	return btagFormat(sum[:], 8, 2, 6)
 }
 
@@ -226,12 +242,12 @@ func ReaderTagWithSerial(reader, serial string) string {
 func ReaderTagWithUnit(reader, serial, port string) string {
 	switch {
 	case serial != "":
-		sum := digestID([]byte("pcscid/reader/v2|"),
-			[]byte(normalizeReaderName(reader)), []byte("|"), []byte(serial))
+		sum := digestID([]byte(readerSerialDomain),
+			[]byte(normalizeReaderName(reader)), []byte(identitySeparator), []byte(serial))
 		return btagFormat(sum[:], 8, 2, 6)
 	case port != "":
-		sum := digestID([]byte("pcscid/reader/v3|"),
-			[]byte(normalizeReaderName(reader)), []byte("|"), []byte(port))
+		sum := digestID([]byte(readerPortDomain),
+			[]byte(normalizeReaderName(reader)), []byte(identitySeparator), []byte(port))
 		return btagFormat(sum[:], 8, 2, 6)
 	default:
 		return ReaderTag(reader)
@@ -255,14 +271,14 @@ func ReaderTagWithMachine(reader, serial, port, machine string) string {
 	var unit string
 	switch {
 	case serial != "":
-		unit = "serial:" + serial
+		unit = readerUnitSerialPrefix + serial
 	case port != "":
-		unit = "port:" + port
+		unit = readerUnitPortPrefix + port
 	default:
-		unit = "model"
+		unit = readerUnitModel
 	}
-	sum := digestID([]byte("pcscid/reader/m1|"),
-		[]byte(normalizeReaderName(reader)), []byte("|"), []byte(unit), []byte("|"), []byte(machine))
+	sum := digestID([]byte(readerMachineDomain),
+		[]byte(normalizeReaderName(reader)), []byte(identitySeparator), []byte(unit), []byte(identitySeparator), []byte(machine))
 	return btagFormat(sum[:], 8, 2, 6)
 }
 

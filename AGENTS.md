@@ -76,6 +76,39 @@ cmd/pcscid ─ pcscid (root pkg) ─ pcsc (wire client) ─ /run/pcscd/pcscd.com
 
 ## Identity model
 
+### Hash stability contract (frozen API)
+
+Btags and reader tags are long lived identifiers: consumers store
+them, chrony registers reader tags, kiosk pages key on them. The
+following are the compatibility surface, never implementation
+details. Changing any of them in place is a breaking release:
+
+- the domain strings and separators (`pcscid.go` constants
+  `btagDomain`, `readerModelDomain`, `readerSerialDomain`,
+  `readerPortDomain`, `readerMachineDomain`, `identitySeparator`) and
+  the machine unit prefixes `serial:` / `port:` / `model`
+- SHA-256 over the concatenated domain separated bytes, with the UID
+  hashed as raw bytes, never as hex or text
+- `btagAlphabet` order, the modulo-36 mapping, the dash layout
+  (`xxx-xxx-xxxx` for btags, `xx-xxxx-xx` for reader tags) and both
+  truncation lengths
+- every card type string returned by `DetectType` (it feeds the btag)
+  and `normalizeReaderName` hotplug suffix stripping (it feeds the
+  reader tag)
+
+A new identity scheme gets a NEW versioned domain (`v2`, `m2`, ...)
+and a new function; existing functions keep serving their existing
+domain forever. Adding a card type, known ATR or reader name shape is
+allowed only together with a new golden row in `hash_test.go`.
+Weakening or regenerating a golden value is a breaking release, never
+a test fix. The guard rails are `TestBtagCardTypesGolden`,
+`TestBtagStandardsGolden`, `TestBtagKnownATRGolden`,
+`TestBtagUIDShapeGolden`, `TestBtagFormatGolden`,
+`TestHashDomainConstantsGolden`, `TestHashDigestsGolden` (the full
+256 bit digest of every domain, not only the visible truncation),
+`TestNormalizeReaderNameGolden`, `TestReaderTagUnitTierGolden`,
+`TestReaderTagShapeGolden` and `TestCardTypeNamesAreHashSafe`.
+
 ### Btag — card identity
 
 - `Btag(cardType, tag)` =
@@ -129,13 +162,18 @@ cmd/pcscid ─ pcscid (root pkg) ─ pcsc (wire client) ─ /run/pcscd/pcscd.com
   repeated full failure paths (wedge, reset, lagging reactivation)
   yields the byte-identical btag and reader tag on every presentation,
   never an ATR derived identity.
-- **Golden identifier hashes** (`TestBtagGolden`,
-  `TestReaderTagGolden`, `TestReaderTagUnitGolden`): the exact btag of
-  a UID observed in production (`DD 5D 6C A5` mifare classic 1k →
-  `w79-i3r-lmr0`) and the exact reader tags of every hash domain (v1
-  model, v2 serial, v3 USB port, m1 machine mixed) are pinned — the
-  tags are long lived identifiers consumers store, any digest change
-  is a breaking release and must fail these tests.
+- **Golden identifier hashes** (`hash_test.go` plus the original
+  `pcscid_test.go` goldens): every hash domain, every card type name,
+  every known ATR, the standard byte fallbacks, the 4/7/10 byte UID
+  shapes and the full raw SHA-256 digest of each domain are pinned,
+  together with the alphabet/dash layout and every
+  `normalizeReaderName` edge case. The exact btag of a UID observed in
+  production (`DD 5D 6C A5` mifare classic 1k → `w79-i3r-lmr0`) and
+  the exact reader tags of every hash domain (v1 model, v2 serial, v3
+  USB port, m1 machine mixed) are included. The tags are long lived
+  identifiers consumers store; any digest change is a breaking release
+  and must fail these tests. New card types, ATRs and reader name
+  shapes must extend the golden tables in the same change.
 
 ### Reader tags — model, unit, machine
 
