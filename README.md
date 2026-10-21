@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="docs/hero.svg" alt="pcscid terminal demo: one card, stable reader tag and btag, signed output" width="100%">
-
 # pcscid
 
 **Tap a card. Get an identity. The same identity tomorrow, on another reader, on another machine, forever.**
@@ -11,6 +9,8 @@
 [![deps](https://img.shields.io/badge/dependencies-zero-blue)](#)
 [![platform](https://img.shields.io/badge/runtime-linux-informational)](#)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+<img src="docs/hero.svg" alt="pcscid terminal demo: one card, stable reader tag and btag, signed output" width="100%">
 
 Pure Go. No cgo. No `libpcsclite`. No dependencies. One static binary that speaks the
 `pcscd` IPC protocol directly and turns every card presentation into a short, stable ID.
@@ -151,14 +151,14 @@ serves reader tags and btags over loopback HTTP with permissive CORS:
 
 | Endpoint | Answer |
 | --- | --- |
-| `GET /health` | `{"ok":true,"version":"v0.0.169"}` |
+| `GET /health` | `{"ok":true,"version":"v0.0.170"}` |
 | `GET /events` | SSE: `hello`, then one `card` event per scan, 20 s keep-alive |
 | `GET /pending?after=N` | JSON replay by monotonic cursor, ring keeps 64 |
 
 ```console
 $ PCSCID_HTTP_ADDR=127.0.0.1:8976 ./pcscid
 $ curl http://127.0.0.1:8976/health
-{"ok":true,"version":"v0.0.169"}
+{"ok":true,"version":"v0.0.170"}
 ```
 
 The listen address must be loopback unless `PCSCID_HTTP_ALLOW_REMOTE=1` lifts the guard.

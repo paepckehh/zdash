@@ -51,11 +51,11 @@
 
     <g class="mono">
       <text x="116" y="238" class="line accent">$ curl http://127.0.0.1:8976/health</text>
-      <text x="116" y="268" class="line muted">{"ok":true,"version":"v0.0.169"}</text>
+      <text x="116" y="268" class="line muted">{"ok":true,"version":"v0.0.170"}</text>
 
       <text x="116" y="316" class="line accent">$ curl -N http://127.0.0.1:8976/events</text>
       <text x="116" y="346" class="line blue">event: hello</text>
-      <text x="116" y="374" class="line muted">data: {"version":"v0.0.169"}</text>
+      <text x="116" y="374" class="line muted">data: {"version":"v0.0.170"}</text>
       <text x="116" y="402" class="line dim">: keep-alive</text>
       <text x="116" y="438" class="line blue">event: card</text>
       <text x="116" y="466" class="line muted">data: {"id":1,"reader":"qr-xlrk-i5","card":"r3v-401-5gmr"}</text>
