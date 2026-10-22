@@ -1,5 +1,11 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/hero-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/hero-light.svg">
+  <img src="docs/hero-light.svg" alt="zDash — a general system dashboard with a ZFS superpower" width="100%">
+</picture>
+
 # ⚡ zDash
 
 **A general system dashboard with a ZFS superpower, and it costs nothing while you look away.**

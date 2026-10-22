@@ -64,7 +64,7 @@ The tree is split into a library package at the repo root (`package zdash`) and 
 ├── cmd/zdash/main.go # package main — wires http.Server + method-aware routes + ConnState hook + BootSleep
 ├── cmd/zdash/main_test.go # listenerAddr test (nil listener → "systemd socket")
 ├── embed/index.html  # single-file dashboard (HTML/CSS/JS), served via embed.FS
-├── docs/            # README screenshots (system light/dark, pools, ARC, SMART NVMe/ATA)
+├── docs/            # README assets: hand-built theme-aware hero banners (hero_dark.svg / hero_light.svg, wired into a <picture> with prefers-color-scheme) + screenshots (system light/dark, pools, ARC, SMART NVMe/ATA)
 ├── testdata/         # canned fixtures: sample.json, arcstats, fib_trie, route, smart_{scan,sda,nvme}.json, ...
 ├── Makefile
 ├── .goreleaser.yml   # goreleaser v2 config: linux/freebsd/darwin × amd64/arm64, tar.gz + deb/rpm
